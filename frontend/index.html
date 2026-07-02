@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>오븐룸 예약 · 쿠키박스</title>
+  <link rel="icon" type="image/png" href="img/cookie.png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="wrap">
+      <h1 class="brand">🍪오븐룸 예약신청서🍪</h1>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div id="bookingArea">
+    <section class="card">
+      <h2 class="step"><span>📅</span> 예약 현황</h2>
+      <p class="hint">이미 예약된 시간을 확인한 뒤, 원하는 시간을 신청해 주세요.</p>
+      <div class="calendar-wrap" id="calendarWrap"></div>
+    </section>
+
+    <section class="card">
+      <h2 class="step"><span>✍️</span> 예약 신청</h2>
+      <form id="bookingForm" class="form" novalidate>
+        <div class="mode-tabs" id="modeTabs">
+          <button type="button" class="mode-tab active" data-mode="single">하루</button>
+          <button type="button" class="mode-tab" data-mode="multiple">기간 선택</button>
+          <button type="button" class="mode-tab" data-mode="repeat">반복</button>
+        </div>
+
+        <label id="dateField">날짜 <span class="label-tip" id="dateTip">하루만 선택</span>
+          <input type="text" id="date" placeholder="날짜 선택" />
+        </label>
+
+        <div class="recurring" id="recurringBox" hidden>
+          <div class="rec-title">매주 반복 설정</div>
+          <div class="rec-fields">
+            <label>요일
+              <select id="repeatWeekday">
+                <option value="" selected>요일 선택</option>
+                <option value="1">월요일</option>
+                <option value="2">화요일</option>
+                <option value="3">수요일</option>
+                <option value="4">목요일</option>
+                <option value="5">금요일</option>
+                <option value="6">토요일</option>
+                <option value="0">일요일</option>
+              </select>
+            </label>
+            <label>시작일
+              <input type="text" id="repeatFrom" placeholder="시작일" />
+            </label>
+            <label>종료일
+              <input type="text" id="repeatUntil" placeholder="종료일" />
+            </label>
+          </div>
+          <button type="button" class="btn-sm" id="repeatFillBtn">적용</button>
+        </div>
+
+        <div class="form-row">
+          <label>시작 시간
+            <select id="startTime"></select>
+          </label>
+          <label>종료 시간
+            <select id="endTime"></select>
+          </label>
+        </div>
+        <p class="hint" id="multiHint">선택한 모든 날짜에 같은 시간대로 신청됩니다.</p>
+        <div class="date-summary" id="dateSummary" hidden></div>
+        <div class="total-time" id="totalTimeBox">총 시간 <b id="totalTimeTop">-</b><span class="total-meta" id="totalTimeMetaTop"></span></div>
+
+        <label>이름 <input type="text" id="name" required maxlength="30" autocomplete="name" /></label>
+        <label>연락처 (숫자만) <input type="tel" id="phone" required inputmode="numeric" pattern="[0-9]*" placeholder="숫자만 입력 (예: 01012345678)" maxlength="11" autocomplete="tel" /></label>
+        <label>인원 <input type="number" id="people" min="1" max="20" value="1" /></label>
+
+        <label>구분
+          <select id="category">
+            <option value="general">일반</option>
+            <option value="member">쿠키박스 단원</option>
+            <option value="team">공연팀</option>
+            <option value="credit">쿠금통</option>
+          </select>
+        </label>
+        <div class="category-detail" id="categoryDetail"></div>
+
+        <p class="notice">신청 후 <b>다음 화면의 정보를 캡쳐하여 카카오톡 채널로 보내주셔야</b> 예약이 확정됩니다.</p>
+        <button type="submit" class="btn-primary" id="submitBtn">예약 신청</button>
+      </form>
+    </section>
+    </div>
+
+    <section class="card confirm-card" id="confirmView" hidden>
+      <h2 class="step"><span>✅</span> 예약 신청 완료</h2>
+      <div class="confirm-guide">
+        <p class="confirm-lead">아래의 화면을 캡쳐하여 카카오톡 채널로 보내주셔야 예약이 확정됩니다.</p>
+        <p>해당 화면 캡쳐 후 <b>오븐룸 카카오톡 채널</b>로 발송 후 입금하여 주시기 바랍니다.</p>
+        <p class="warn-text">화면 캡쳐본을 발송하지 않을 경우, 예약이 누락될 수 있으니 반드시 전송 부탁드립니다.</p>
+      </div>
+      <div class="confirm-summary" id="confirmSummary"></div>
+      <div class="confirm-account" id="confirmAccount"></div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ko.js"></script>
+  <script src="js/booking.js"></script>
+</body>
+</html>
