@@ -172,9 +172,8 @@
     if (!c) { box.innerHTML = ""; updateTotal(); return; }
     let html = "";
     if (c === "credit") {
-      html += '<div class="cat-note">쿠금통 적립제 — 이름과 연락처 뒷 4자리로 잔여시간을 조회합니다.</div>';
       html += '<div class="credit-box">' +
-        '<div class="credit-row"><span>사용 시간</span><b id="creditUse">-</b></div>' +
+        '<div class="credit-row"><span>예약 요청시간</span><b id="creditUse">-</b></div>' +
         '<div class="credit-row"><span>잔여 시간</span><b>시트 연동 후 표시</b></div>' +
         "</div>";
     } else {
