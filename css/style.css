@@ -152,6 +152,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--c
 .credit-row { display: flex; justify-content: space-between; align-items: center; padding: 13px 16px; font-weight: 700; background: var(--card); }
 .credit-row + .credit-row { border-top: 2px solid var(--line); }
 .credit-row b { color: var(--coral-deep); font-size: 1.1rem; }
+.credit-val { display: inline-flex; align-items: baseline; gap: 6px; text-align: right; }
 .confirm-guide { margin-bottom: 6px; }
 .confirm-guide p { font-size: 0.93rem; line-height: 1.65; margin: 4px 0; }
 .confirm-lead { font-size: 1rem; font-weight: 800; color: var(--ink); }

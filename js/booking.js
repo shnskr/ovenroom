@@ -154,6 +154,8 @@
     const use = $("#creditUse");
     if (use) {
       use.textContent = totalHours ? totalHours + "시간" : "-";
+      const useMeta = $("#creditUseMeta");
+      if (useMeta) useMeta.textContent = dates.length > 1 && hours ? ` (${dates.length}일 · 하루 ${hours}시간)` : "";
       return;
     }
     const amt = $("#totalAmount");
@@ -173,7 +175,7 @@
     let html = "";
     if (c === "credit") {
       html += '<div class="credit-box">' +
-        '<div class="credit-row"><span>예약 요청시간</span><b id="creditUse">-</b></div>' +
+        '<div class="credit-row"><span>예약 요청시간</span><span class="credit-val"><b id="creditUse">-</b><span class="total-meta" id="creditUseMeta"></span></span></div>' +
         '<div class="credit-row"><span>잔여 시간</span><b>시트 연동 후 표시</b></div>' +
         "</div>";
     } else {
