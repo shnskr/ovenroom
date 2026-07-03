@@ -296,12 +296,12 @@
   function showConfirm(p, total) {
     const perDayHours = toMin(p.end) > toMin(p.start) ? (toMin(p.end) - toMin(p.start)) / 60 : 0;
     const totalHours = perDayHours * p.dates.length;
-    const totalTimeStr = totalHours + "시간" + (p.dates.length > 1 ? ` (${p.dates.length}일 · 하루 ${perDayHours}시간)` : "");
+    const totalTimeStr = "총 " + totalHours + "시간" + (p.dates.length > 1 ? `\n(${p.dates.length}일 · 하루 ${perDayHours}시간)` : "");
     const rows = [
       ["예약자명", p.name],
       ["예약자 연락처", p.phone],
       ["예약 일자", p.dates.map(fmtDate).join(p.dates.length > 1 ? "\n" : ", "), p.dates.length > 1 ? "cs-dates" : ""],
-      ["예약 시간", `${p.start} ~ ${p.end}\n총 ${totalTimeStr}`, "cs-time"],
+      ["예약 시간", `${p.start} ~ ${p.end}\n${totalTimeStr}`, "cs-time"],
       ["예약 인원", p.people + "명"],
       ["예약 구분", categoryLabel(p.category)],
     ];
