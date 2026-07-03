@@ -347,7 +347,6 @@
     e.preventDefault();
     const dates = selectedDates().map(dateStr);
     const payload = {
-      room: CONFIG.ROOMS[0].id,
       dates: dates,
       start: $("#startTime").value,
       end: $("#endTime").value,
@@ -365,6 +364,7 @@
     if (toMin(payload.end) <= toMin(payload.start)) { toast("종료 시간을 시작 시간 이후로 골라 주세요."); return; }
 
     const total = calcTotal();
+    payload.amount = total; // 쿠금통이면 null (입금액 없음)
     const btn = $("#submitBtn");
     btn.disabled = true; btn.textContent = "신청 중…";
     try {

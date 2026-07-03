@@ -9,7 +9,12 @@
 1. [Google 캘린더](https://calendar.google.com) → 왼쪽 "다른 캘린더" 옆 **+** → **새 캘린더 만들기**
 2. 이름: `오븐룸 예약` → 만들기
 3. 만든 캘린더 **설정** → 아래로 스크롤 → **캘린더 통합** → **캘린더 ID** 복사
-   (예: `xxxxxxxx@group.calendar.google.com`)
+   (예: `xxxxxxxx@group.calendar.google.com`) — 예약 시 일정이 여기에 **자동 등록**됩니다.
+4. **사이트의 '예약 현황'에 이 캘린더를 표시**하려면 (선택):
+   - 같은 설정 화면의 **액세스 권한** → **"일반 공개 사용 설정"** 체크 → **"모든 일정 세부정보 보기"**
+     (일정 제목이 익명 `예약됨`/`예약확정` 이라 이름·연락처 등 개인정보는 노출되지 않습니다.)
+   - **캘린더 통합** → **"삽입 코드"** 의 `src="..."` 안의 URL
+     (`https://calendar.google.com/calendar/embed?src=...`) 복사 → 5단계에서 사용
 
 ## 2. 구글 시트 만들기
 1. [Google 시트](https://sheets.google.com)에서 새 스프레드시트 생성 → 이름 `오븐룸 예약기록`
@@ -30,11 +35,12 @@
 
 | 속성 이름 | 값 |
 |---|---|
-| `CALENDAR_ID` | 1단계에서 복사한 캘린더 ID |
-| `SHEET_ID` | 2단계에서 복사한 시트 ID |
-| `ADMIN_TOKEN` | 관리자 비밀번호(원하는 임의 문자열, 길고 복잡하게) |
+| `SHEET_ID` | 2단계에서 복사한 시트 ID **(필수)** |
+| `ADMIN_TOKEN` | 관리자 비밀번호(원하는 임의 문자열, 길고 복잡하게) **(필수)** |
+| `CALENDAR_ID` | 1단계에서 복사한 캘린더 ID **(선택 — 넣으면 예약 시 캘린더 자동 등록)** |
 
 > 이 값들은 구글 서버에만 저장되고 브라우저로 전송되지 않아 안전합니다.
+> `CALENDAR_ID` 를 비워두면 캘린더 연동 없이 **시트에만** 저장됩니다.
 
 ## 4. 웹앱 배포
 1. 오른쪽 위 **배포 → 새 배포**
@@ -47,12 +53,12 @@
 5. 발급된 **웹 앱 URL**(`.../exec`) 복사
 
 ## 5. 프론트엔드 연결
-1. `frontend/js/config.js` 의 `API_URL` 에 4번 URL 붙여넣기
-2. `OPEN_HOUR / CLOSE_HOUR / SLOT_MINUTES / ROOMS` 등 운영값 조정
-3. `frontend` 폴더를 웹에 올리기 (아래 중 택1)
-   - **GitHub Pages**(무료): 레포에 올리고 Pages 활성화
-   - **Netlify / Vercel**(무료): 폴더 드래그&드롭 배포
-   - 로컬 테스트: `frontend` 폴더에서 `python -m http.server` 후 `localhost:8000`
+1. `js/config.js` 의 `API_URL` 에 4번 웹 앱 URL(`.../exec`) 붙여넣기
+2. `js/config.js` 의 `CALENDAR_EMBED_URL` 에 1-4단계에서 복사한 삽입용 URL 붙여넣기
+   (`https://calendar.google.com/calendar/embed?src=...`) — 넣으면 '예약 현황'에 캘린더가 표시됩니다.
+3. `OPEN_HOUR / CLOSE_HOUR / SLOT_MINUTES / ROOMS / PRICING` 등 운영값 확인
+4. 커밋 후 푸시 → **GitHub Pages** 로 자동 배포 (현재 이 레포가 그렇게 설정돼 있습니다)
+   - 로컬 테스트: 프로젝트 폴더에서 `python -m http.server` 후 `localhost:8000`
 
 ## 6. 사용
 - 고객: `index.html`

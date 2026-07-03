@@ -28,6 +28,6 @@ const API = {
     return this._post("getReservations", { token, from, to });
   },
   setStatus(token, id, status) {
-    return this._post("setStatus", { token, id, status });
+    return this._post("updateStatus", { token, id, status });
   },
 };

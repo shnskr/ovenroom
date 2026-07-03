@@ -4,7 +4,8 @@
   const dateStr = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const isDemo = () => String(CONFIG.API_URL).includes("PASTE_YOUR");
 
-  const STATUS_LABEL = { pending: "대기", approved: "승인", rejected: "거절", canceled: "취소" };
+  const STATUS_CSS = { "대기": "pending", "확정": "confirmed", "취소": "canceled" };
+  const CAT_LABEL = { general: "일반", member: "쿠키박스 단원", team: "공연팀", credit: "쿠금통" };
   let demoRows = null;
 
   function token() { return sessionStorage.getItem("ovenroom_admin_token") || ""; }
@@ -17,17 +18,15 @@
     setTimeout(() => (t.className = "toast"), 3600);
   }
 
-  function roomName(id) {
-    const r = CONFIG.ROOMS.find((r) => r.id === id);
-    return r ? r.name : id;
-  }
+  function catLabel(r) { return r.categoryLabel || CAT_LABEL[r.category] || r.category || "-"; }
+  function fmtAmount(a) { return a == null || a === "" ? "-" : Number(a).toLocaleString() + "원"; }
 
   function seedDemo() {
     const today = dateStr(new Date());
     return [
-      { id: "d1", room: "oven-room", date: today, start: "14:00", end: "16:00", name: "김민지", phone: "010-1234-5678", people: 2, memo: "합주 연습", status: "pending" },
-      { id: "d2", room: "oven-room", date: today, start: "18:00", end: "19:00", name: "이서준", phone: "010-2222-3333", people: 1, memo: "", status: "approved" },
-      { id: "d3", room: "oven-room", date: today, start: "20:00", end: "22:00", name: "박도윤", phone: "010-9876-5432", people: 4, memo: "보컬 연습", status: "pending" },
+      { id: "d1", date: today, start: "14:00", end: "16:00", name: "김민지", phone: "010-1234-5678", people: 2, category: "general", showName: "", amount: 15000, status: "대기" },
+      { id: "d2", date: today, start: "18:00", end: "19:00", name: "이서준", phone: "010-2222-3333", people: 1, category: "member", showName: "", amount: 8000, status: "확정" },
+      { id: "d3", date: today, start: "20:00", end: "22:00", name: "박도윤", phone: "010-9876-5432", people: 4, category: "team", showName: "가을 정기공연", amount: 16000, status: "대기" },
     ];
   }
 
@@ -35,7 +34,7 @@
     const from = $("#fromDate").value;
     const to = $("#toDate").value;
     const body = $("#tableBody");
-    body.innerHTML = `<tr><td colspan="7" class="hint">불러오는 중…</td></tr>`;
+    body.innerHTML = `<tr><td colspan="8" class="hint">불러오는 중…</td></tr>`;
     try {
       let rows;
       if (isDemo()) {
@@ -47,35 +46,37 @@
       }
       render(rows);
     } catch (e) {
-      body.innerHTML = `<tr><td colspan="7" class="hint">${e.message}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="8" class="hint">${e.message}</td></tr>`;
       if (/토큰|권한|unauthorized/i.test(e.message)) showLogin();
     }
   }
 
   function actionsFor(status) {
-    if (status === "pending") return [{ l: "승인", c: "ok", s: "approved" }, { l: "거절", c: "warn", s: "rejected" }];
-    if (status === "approved") return [{ l: "취소", c: "warn", s: "canceled" }];
-    return [{ l: "승인", c: "ok", s: "approved" }];
+    if (status === "대기") return [{ l: "확정", c: "ok", s: "확정" }, { l: "취소", c: "warn", s: "취소" }];
+    if (status === "확정") return [{ l: "취소", c: "warn", s: "취소" }];
+    return [{ l: "확정", c: "ok", s: "확정" }];
   }
 
   function render(rows) {
     const body = $("#tableBody");
     if (rows.length === 0) {
-      body.innerHTML = `<tr><td colspan="7" class="hint">해당 기간에 예약이 없습니다.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="8" class="hint">해당 기간에 예약이 없습니다.</td></tr>`;
       return;
     }
     rows.sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
     body.innerHTML = "";
     rows.forEach((r) => {
       const tr = document.createElement("tr");
-      tr.className = r.status;
+      const cssStatus = STATUS_CSS[r.status] || "";
+      tr.className = cssStatus;
       tr.innerHTML =
         `<td data-label="일시">${r.date}<br><span class="muted">${r.start}~${r.end}</span></td>` +
-        `<td data-label="공간">${roomName(r.room)}</td>` +
         `<td data-label="예약자">${escapeHtml(r.name)}<br><span class="muted">${escapeHtml(r.phone)}</span></td>` +
         `<td data-label="인원">${r.people || 1}명</td>` +
-        `<td data-label="요청사항">${escapeHtml(r.memo || "")}</td>` +
-        `<td data-label="상태"><span class="badge ${r.status}">${STATUS_LABEL[r.status] || r.status}</span></td>` +
+        `<td data-label="구분">${escapeHtml(catLabel(r))}</td>` +
+        `<td data-label="공연명">${escapeHtml(r.showName || "")}</td>` +
+        `<td data-label="입금액">${fmtAmount(r.amount)}</td>` +
+        `<td data-label="상태"><span class="badge ${cssStatus}">${escapeHtml(r.status)}</span></td>` +
         `<td class="actions" data-label="관리"></td>`;
       const cell = tr.querySelector(".actions");
       actionsFor(r.status).forEach((a) => cell.appendChild(actionBtn(a.l, a.c, () => change(r.id, a.s))));
@@ -92,7 +93,7 @@
   }
 
   async function change(id, status) {
-    if ((status === "canceled" || status === "rejected") && !confirm("진행할까요?")) return;
+    if (status === "취소" && !confirm("이 예약을 취소할까요? 캘린더 일정이 삭제됩니다.")) return;
     try {
       if (isDemo()) {
         const row = demoRows.find((r) => r.id === id);

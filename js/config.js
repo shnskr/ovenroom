@@ -1,6 +1,6 @@
 const CONFIG = {
-  API_URL: "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE",
-  CALENDAR_EMBED_URL: "PASTE_YOUR_GOOGLE_CALENDAR_EMBED_URL_HERE",
+  API_URL: "https://script.google.com/macros/s/AKfycbxGv6g8BrQb6arGV5aD6iaL9Gy-h0f74r4CKrDNw6vEI_53_StpNTLbtSbtbrW0Ndap/exec",
+  CALENDAR_EMBED_URL: "https://calendar.google.com/calendar/embed?src=c4845e82ea7bc55fad6c6dc5c831de40ccc7d11f0b093bcf7ade08e2d433bdfb%40group.calendar.google.com&ctz=Asia%2FSeoul",
 
   BUSINESS_NAME: "쿠키박스",
   ROOM_LABEL: "오븐룸",
