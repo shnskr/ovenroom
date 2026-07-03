@@ -9,11 +9,23 @@
   let fp = null;
   let mode = "single";
 
+  let toastTimer = null;
   function toast(msg, ok) {
     const t = $("#toast");
+    if (toastTimer) clearTimeout(toastTimer);
     t.textContent = msg;
+    t.style.whiteSpace = "nowrap";
+    let size = 0.92;
+    t.style.fontSize = size + "rem";
     t.className = "toast show" + (ok ? " ok" : " err");
-    setTimeout(() => (t.className = "toast"), 3800);
+    // 한 줄 유지: 화면을 넘치면 글자 크기를 조금씩 줄임
+    while (t.scrollWidth > t.clientWidth && size > 0.62) {
+      size -= 0.03;
+      t.style.fontSize = size + "rem";
+    }
+    // 그래도 넘칠 만큼 길면 줄바꿈 허용(가독성 우선)
+    if (t.scrollWidth > t.clientWidth) t.style.whiteSpace = "normal";
+    toastTimer = setTimeout(() => { t.className = "toast"; }, 3800);
   }
 
   function renderCalendar() {
@@ -33,6 +45,7 @@
   }
 
   function maxDate() {
+    if (!CONFIG.BOOKABLE_DAYS_AHEAD || CONFIG.BOOKABLE_DAYS_AHEAD <= 0) return undefined;
     const d = new Date();
     d.setDate(d.getDate() + CONFIG.BOOKABLE_DAYS_AHEAD);
     return d;
@@ -192,7 +205,9 @@
     const dates = selectedDates();
     if (dates.length === 0) { el.textContent = "선택된 날짜가 없습니다."; return; }
     const parts = dates.map((d) => `${d.getMonth() + 1}월 ${d.getDate()}일(${WK[d.getDay()]})`);
-    el.textContent = `선택 ${dates.length}일 · ` + parts.join(", ");
+    if (dates.length === 1) { el.textContent = `선택 1일 · ${parts[0]}`; return; }
+    el.innerHTML = `<div class="ds-head">선택 ${dates.length}일</div>` +
+      parts.map((p) => `<div class="ds-item">${p}</div>`).join("");
   }
 
   function fillWeekly() {
@@ -258,11 +273,24 @@
 
   function fmtDate(s) {
     const d = new Date(s + "T00:00:00");
-    return `${pad(d.getMonth() + 1)}월 ${pad(d.getDate())}일 (${WK[d.getDay()]})`;
+    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}(${WK[d.getDay()]})`;
   }
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+  }
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+    return new Promise((resolve, reject) => {
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      let ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      ok ? resolve() : reject();
+    });
   }
 
   function showConfirm(p, total) {
@@ -272,8 +300,8 @@
     const rows = [
       ["예약자명", p.name],
       ["예약자 연락처", p.phone],
-      ["예약 일자", p.dates.map(fmtDate).join(", ")],
-      ["예약 시간", `${p.start} ~ ${p.end} · 총 ${totalTimeStr}`],
+      ["예약 일자", p.dates.map(fmtDate).join(p.dates.length > 1 ? "\n" : ", "), p.dates.length > 1 ? "cs-dates" : ""],
+      ["예약 시간", `${p.start} ~ ${p.end}\n총 ${totalTimeStr}`, "cs-time"],
       ["예약 인원", p.people + "명"],
       ["예약 구분", categoryLabel(p.category)],
     ];
@@ -284,9 +312,26 @@
       rows.push(["입금액", (total || 0).toLocaleString() + "원"]);
     }
     $("#confirmSummary").innerHTML = rows
-      .map(([k, v]) => `<div class="cs-row"><span class="cs-k">${k}</span><span class="cs-v">${escapeHtml(v)}</span></div>`)
+      .map(([k, v, cls]) => `<div class="cs-row"><span class="cs-k">${k}</span><span class="cs-v${cls ? " " + cls : ""}">${escapeHtml(v)}</span></div>`)
       .join("");
-    $("#confirmAccount").innerHTML = "계좌번호 : <b>" + (CONFIG.BANK_ACCOUNT ? escapeHtml(CONFIG.BANK_ACCOUNT) : "(설정 후 표시)") + "</b>";
+    const acctFull = CONFIG.BANK_ACCOUNT || "";
+    const acctParts = acctFull.trim().split(/\s+/);
+    const acctCopy = acctParts.length > 1 ? acctParts.slice(0, -1).join(" ") : acctFull;
+    $("#confirmAccount").innerHTML =
+      '<div class="acct-info">' +
+        '<span class="acct-label">계좌번호</span>' +
+        '<span class="acct-value">' + (acctFull ? escapeHtml(acctFull) : "(설정 후 표시)") + "</span>" +
+      "</div>" +
+      (acctFull ? '<button type="button" class="acct-copy" id="acctCopyBtn" title="계좌번호 복사" aria-label="계좌번호 복사">📋</button>' : "");
+    const copyBtn = $("#acctCopyBtn");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", () => {
+        copyToClipboard(acctCopy).then(
+          () => toast("계좌번호가 복사되었습니다.", true),
+          () => toast("복사에 실패했어요. 직접 복사해 주세요.")
+        );
+      });
+    }
     const kakaoBtn = $("#kakaoChannelBtn");
     if (kakaoBtn) {
       if (CONFIG.KAKAO_CHANNEL_URL) { kakaoBtn.href = CONFIG.KAKAO_CHANNEL_URL; kakaoBtn.hidden = false; }
@@ -352,6 +397,11 @@
     $("#phone").addEventListener("input", (e) => { e.target.value = e.target.value.replace(/\D/g, ""); });
     $("#category").addEventListener("change", renderCategoryDetail);
     $("#bookingForm").addEventListener("submit", submit);
+    $("#newBookingBtn").addEventListener("click", () => {
+      $("#confirmView").hidden = true;
+      $("#bookingArea").hidden = false;
+      window.scrollTo(0, 0);
+    });
     renderCategoryDetail();
     setMode("single");
   }

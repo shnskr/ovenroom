@@ -52,12 +52,14 @@
                 <option value="0">일요일</option>
               </select>
             </label>
-            <label>시작일
-              <input type="text" id="repeatFrom" placeholder="시작일" />
-            </label>
-            <label>종료일
-              <input type="text" id="repeatUntil" placeholder="종료일" />
-            </label>
+            <div class="rec-dates">
+              <label>시작일
+                <input type="text" id="repeatFrom" placeholder="시작일" />
+              </label>
+              <label>종료일
+                <input type="text" id="repeatUntil" placeholder="종료일" />
+              </label>
+            </div>
           </div>
           <button type="button" class="btn-sm" id="repeatFillBtn">적용</button>
         </div>
@@ -105,6 +107,7 @@
       <div class="confirm-summary" id="confirmSummary"></div>
       <div class="confirm-account" id="confirmAccount"></div>
       <a class="btn-kakao" id="kakaoChannelBtn" href="http://pf.kakao.com/_KWxiRX/chat" target="_blank" rel="noopener">💬 카카오톡 채널로 이동</a>
+      <button type="button" class="btn-primary" id="newBookingBtn">새 예약하기</button>
     </section>
   </main>
 

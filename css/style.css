@@ -101,8 +101,10 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--c
   background: var(--cream-deep); border: 2px solid var(--line); border-radius: 12px;
 }
 .rec-title { font-size: 0.86rem; font-weight: 800; color: var(--cookie-deep); }
-.rec-fields { display: flex; flex-wrap: wrap; gap: 10px; }
-.rec-fields label { flex: 1 1 130px; display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; font-weight: 700; color: var(--cookie-deep); }
+.rec-fields { display: flex; flex-direction: column; gap: 10px; }
+.rec-fields label { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; font-weight: 700; color: var(--cookie-deep); }
+.rec-dates { display: flex; gap: 10px; }
+.rec-dates label { flex: 1; }
 .rec-fields select, .rec-fields input { width: 100%; font-weight: 400; }
 .recurring .btn-sm { width: 100%; }
 .date-summary {
@@ -110,6 +112,8 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--c
   background: #fdf3e2; border: 2px solid var(--line); border-radius: 10px;
   font-size: 0.86rem; font-weight: 700; color: var(--cookie-deep); line-height: 1.65;
 }
+.ds-head { font-weight: 800; margin-bottom: 5px; }
+.ds-item { font-weight: 600; padding-left: 2px; }
 .category-detail { margin-bottom: 14px; }
 .category-detail label { display: block; margin-bottom: 10px; font-weight: 600; font-size: 0.92rem; }
 .cat-note {
@@ -157,7 +161,14 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--c
 .cs-row + .cs-row { border-top: 1px solid var(--line); }
 .cs-k { width: 132px; flex-shrink: 0; font-weight: 700; color: var(--cookie-deep); }
 .cs-v { font-weight: 600; word-break: break-all; }
-.confirm-account { background: var(--cream-deep); border: 2px solid var(--line); border-radius: 10px; padding: 13px 15px; font-weight: 700; margin-bottom: 18px; }
+.cs-v.cs-dates, .cs-v.cs-time { white-space: pre-line; line-height: 1.6; }
+.confirm-account { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--cream-deep); border: 2px solid var(--line); border-radius: 10px; padding: 13px 15px; font-weight: 700; margin-bottom: 18px; }
+.acct-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.acct-label { font-size: 0.8rem; color: var(--cookie-deep); }
+.acct-value { font-size: 0.98rem; word-break: break-all; }
+.acct-copy { flex: none; width: 40px; height: 40px; border: 2px solid var(--line); border-radius: 9px; background: #fff; cursor: pointer; font-size: 1.1rem; line-height: 1; display: flex; align-items: center; justify-content: center; }
+.acct-copy:hover { background: var(--cream); }
+.acct-copy:active { transform: translateY(1px); }
 
 .calendar-wrap { margin-top: 6px; }
 .cal-frame { width: 100%; height: 480px; border-radius: 12px; border: 2px solid var(--ink); }
@@ -188,11 +199,13 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--c
 }
 .btn-kakao:hover { background: #f5d800; }
 .btn-kakao:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 rgba(36, 31, 27, 0.12); }
+#newBookingBtn { margin-top: 10px; }
 
 .toast {
   position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
   background: var(--ink); color: #fff; padding: 12px 20px; border-radius: 24px;
-  opacity: 0; pointer-events: none; transition: 0.25s; max-width: 90%; text-align: center;
+  opacity: 0; pointer-events: none; transition: 0.25s; text-align: center;
+  width: fit-content; max-width: calc(100vw - 20px); white-space: nowrap; word-break: keep-all; line-height: 1.45;
   font-size: 0.92rem; font-weight: 700; z-index: 100; border: 2px solid rgba(255, 255, 255, 0.15);
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
