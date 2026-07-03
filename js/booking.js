@@ -104,7 +104,7 @@
 
   function calcTotal() {
     const cat = $("#category").value;
-    if (cat === "credit") return null;
+    if (!cat || cat === "credit") return null;
     const dates = selectedDates();
     const start = $("#startTime").value, end = $("#endTime").value;
     if (!dates.length || !start || !end) return null;
@@ -156,11 +156,12 @@
   function renderCategoryDetail() {
     const c = $("#category").value;
     const box = $("#categoryDetail");
+    if (!c) { box.innerHTML = ""; updateTotal(); return; }
     let html = "";
     if (c === "credit") {
       html += '<div class="cat-note">쿠금통 적립제 — 이름과 연락처 뒷 4자리로 잔여시간을 조회합니다.</div>';
       html += '<div class="credit-box">' +
-        '<div class="credit-row"><span>추가 시간</span><b id="creditUse">-</b></div>' +
+        '<div class="credit-row"><span>사용 시간</span><b id="creditUse">-</b></div>' +
         '<div class="credit-row"><span>잔여 시간</span><b>시트 연동 후 표시</b></div>' +
         "</div>";
     } else {
@@ -170,6 +171,8 @@
       html += priceTableHtml();
       if (c === "general" || c === "member") {
         html += '<div class="surcharge-note">※ 예약인원 10명 초과 시 1시간당 1,000원(1인당) 추가됩니다.</div>';
+      } else if (c === "team") {
+        html += '<div class="surcharge-note">※ 인원 추가금이 발생하지 않습니다.</div>';
       }
       if (c === "member" || c === "team") {
         html += '<div class="discount-note">※ 위 금액의 20% 할인된 금액으로 계산됩니다.</div>';
@@ -263,11 +266,14 @@
   }
 
   function showConfirm(p, total) {
+    const perDayHours = toMin(p.end) > toMin(p.start) ? (toMin(p.end) - toMin(p.start)) / 60 : 0;
+    const totalHours = perDayHours * p.dates.length;
+    const totalTimeStr = totalHours + "시간" + (p.dates.length > 1 ? ` (${p.dates.length}일 · 하루 ${perDayHours}시간)` : "");
     const rows = [
       ["예약자명", p.name],
       ["예약자 연락처", p.phone],
       ["예약 일자", p.dates.map(fmtDate).join(", ")],
-      ["예약 시간", `${p.start} ~ ${p.end}`],
+      ["예약 시간", `${p.start} ~ ${p.end} · 총 ${totalTimeStr}`],
       ["예약 인원", p.people + "명"],
       ["예약 구분", categoryLabel(p.category)],
     ];
@@ -281,6 +287,11 @@
       .map(([k, v]) => `<div class="cs-row"><span class="cs-k">${k}</span><span class="cs-v">${escapeHtml(v)}</span></div>`)
       .join("");
     $("#confirmAccount").innerHTML = "계좌번호 : <b>" + (CONFIG.BANK_ACCOUNT ? escapeHtml(CONFIG.BANK_ACCOUNT) : "(설정 후 표시)") + "</b>";
+    const kakaoBtn = $("#kakaoChannelBtn");
+    if (kakaoBtn) {
+      if (CONFIG.KAKAO_CHANNEL_URL) { kakaoBtn.href = CONFIG.KAKAO_CHANNEL_URL; kakaoBtn.hidden = false; }
+      else kakaoBtn.hidden = true;
+    }
     $("#bookingArea").hidden = true;
     $("#confirmView").hidden = false;
     window.scrollTo(0, 0);
@@ -303,6 +314,8 @@
     if (dates.length === 0) { toast("날짜를 선택해 주세요."); return; }
     if (!payload.start || !payload.end) { toast("이용 시간을 선택해 주세요."); return; }
     if (!payload.name || !payload.phone) { toast("이름과 연락처를 입력해 주세요."); return; }
+    if (!payload.category) { toast("구분을 선택해 주세요."); return; }
+    if (payload.category === "team" && !payload.showName) { toast("공연명을 입력해 주세요."); return; }
     if (toMin(payload.end) <= toMin(payload.start)) { toast("종료 시간을 시작 시간 이후로 골라 주세요."); return; }
 
     const total = calcTotal();

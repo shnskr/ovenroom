@@ -5,6 +5,7 @@ const CONFIG = {
   BUSINESS_NAME: "쿠키박스",
   ROOM_LABEL: "오븐룸",
   BANK_ACCOUNT: "신한은행 110-630-872960 김지윤",
+  KAKAO_CHANNEL_URL: "http://pf.kakao.com/_KWxiRX/chat",
 
   OPEN_HOUR: 0,
   CLOSE_HOUR: 24,
@@ -19,7 +20,7 @@ const CONFIG = {
   PRICING: {
     weekdayBands: [
       { start: 0, end: 9, rate: 5000 },
-      { start: 9, end: 17, rate: 7000 },
+      { start: 9, end: 17, rate: 7500 },
       { start: 17, end: 24, rate: 9000 },
     ],
     weekendBands: [

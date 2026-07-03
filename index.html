@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>오븐룸 예약 · 쿠키박스</title>
+  <title>오븐룸 예약</title>
   <link rel="icon" type="image/png" href="img/cookie.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css" />
@@ -80,6 +80,7 @@
 
         <label>구분
           <select id="category">
+            <option value="" selected>선택</option>
             <option value="general">일반</option>
             <option value="member">쿠키박스 단원</option>
             <option value="team">공연팀</option>
@@ -103,6 +104,7 @@
       </div>
       <div class="confirm-summary" id="confirmSummary"></div>
       <div class="confirm-account" id="confirmAccount"></div>
+      <a class="btn-kakao" id="kakaoChannelBtn" href="http://pf.kakao.com/_KWxiRX/chat" target="_blank" rel="noopener">💬 카카오톡 채널로 이동</a>
     </section>
   </main>
 
