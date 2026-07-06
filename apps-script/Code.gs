@@ -11,6 +11,8 @@
  *   SHEET_ID     : 예약 데이터를 저장할 구글 시트 ID (필수)
  *   ADMIN_TOKEN  : 관리자 페이지 접속 토큰(비밀번호) (필수)
  *   CALENDAR_ID  : 예약 일정을 등록할 구글 캘린더 ID (선택 — 없으면 시트만 저장)
+ *   SPACECLOUD_ICAL_URL : 스페이스클라우드 호스트센터 "캘린더 내보내기" 주소 (선택)
+ *                         — 설정하면 setupSpaceCloudTrigger 실행 후 5분마다 자동 동기화
  * ============================================================ */
 
 var SHEET_NAME = "예약목록";
@@ -736,6 +738,10 @@ function updateStatus(req) {
   var admin = requireAdmin(req);
   var id = req.id, status = req.status;
   if (VALID_STATUS.indexOf(status) === -1) throw new Error("잘못된 상태값입니다.");
+  // 스클 건은 피드가 진실의 원천 — 여기서 바꿔도 다음 동기화 때 피드 기준으로 되돌아가므로 차단
+  if (String(id).indexOf(SC_ID_PREFIX) === 0) {
+    throw new Error("스페이스클라우드 예약은 여기서 변경할 수 없습니다. 스클 호스트센터에서 취소/변경하면 5분 안에 자동 반영됩니다.");
+  }
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
@@ -874,4 +880,304 @@ function setupPurgeTrigger() {
     if (triggers[i].getHandlerFunction() === "purgeOldPersonalData") ScriptApp.deleteTrigger(triggers[i]);
   }
   ScriptApp.newTrigger("purgeOldPersonalData").timeBased().everyDays(1).atHour(4).create();
+}
+
+/* ============================================================
+ *  스페이스클라우드 연동 (iCal 피드 → 시트·캘린더 자동 동기화)
+ * ------------------------------------------------------------
+ *  스클엔 공식 API가 없고 호스트센터 "캘린더 내보내기" 주소(iCal)만 있음.
+ *  이 주소는 요청할 때마다 실시간 생성되며(2026-07-06 실측),
+ *  "그 날짜가 지나지 않은" 예약만 담고 과거 건은 주지 않음.
+ *  → 5분마다 읽어서: 신규는 시트+캘린더에 추가, 시간 변경은 갱신,
+ *    "종료 시각이 아직 안 지났는데 피드에서 사라진" 건만 취소로 판단.
+ *  스클 건의 예약ID는 "sc:피드고유번호" — 중복 방지와 수동 변경 차단의 기준.
+ * ============================================================ */
+
+var SC_ID_PREFIX = "sc:";             // 스클 예약 행의 예약ID 접두어
+var SC_CATEGORY = "스페이스클라우드"; // 구분 칸 표기
+var SC_HANDLER = "스클동기화";        // 처리자 칸 표기
+var IMPORT_CATEGORY = "캘린더 이관";  // 캘린더→시트 일회성 이관 행의 구분 표기
+
+// iCal 텍스트 → [{uid, date, start, end, summary}] (시간 있는 일정만).
+// 피드 시간은 표기 그대로 한국시간(실측 확인). 자정을 넘는 건은 그 날 24:00까지로 기록.
+function parseIcs(text) {
+  text = String(text).replace(/\r\n[ \t]/g, "").replace(/\n[ \t]/g, ""); // 접힌 줄 펴기
+  var out = [];
+  var blocks = text.split("BEGIN:VEVENT");
+  for (var i = 1; i < blocks.length; i++) {
+    var b = blocks[i].split("END:VEVENT")[0];
+    var uid = icsField(b, "UID");
+    var sum = icsField(b, "SUMMARY").replace(/\\([,;\\nN])/g, function (m, c) { return c === "n" || c === "N" ? " " : c; });
+    var ds = b.match(/\nDTSTART[^:]*:(\d{8})(?:T(\d{2})(\d{2}))?/);
+    var de = b.match(/\nDTEND[^:]*:(\d{8})(?:T(\d{2})(\d{2}))?/);
+    if (!uid || !ds || !ds[2]) continue; // 시간 정보 없는(종일) 항목은 대상 아님
+    var date = ds[1].slice(0, 4) + "-" + ds[1].slice(4, 6) + "-" + ds[1].slice(6, 8);
+    var end = de && de[2] && de[1] === ds[1] ? de[2] + ":" + de[3] : "24:00";
+    out.push({ uid: uid, date: date, start: ds[2] + ":" + ds[3], end: end, summary: trim(sum) });
+  }
+  return out;
+}
+function icsField(block, key) {
+  var m = block.match(new RegExp("\\n" + key + "[^:\\n]*:([^\\n]*)"));
+  return m ? trim(m[1]) : "";
+}
+
+// 스클 피드 내려받기 — 200이 아니거나 iCal 형식이 아니면 예외 (호출부가 "변경 없음"으로 처리)
+function fetchScFeed() {
+  var res = UrlFetchApp.fetch(prop("SPACECLOUD_ICAL_URL"), { muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) throw new Error("피드 응답 코드 " + res.getResponseCode());
+  var text = res.getContentText("UTF-8");
+  if (text.indexOf("BEGIN:VCALENDAR") === -1) throw new Error("iCal 형식이 아닌 응답");
+  return parseIcs(text);
+}
+
+// 피드 제목에서 "(장기)" 같은 앞쪽 표식과 이름을 분리
+function splitScName(summary) {
+  var m = String(summary).match(/^\(([^)]{1,8})\)\s*(.+)$/);
+  if (m) return { marker: "(" + m[1] + ")", name: trim(m[2]) };
+  return { marker: "", name: trim(summary) };
+}
+
+// 스클 건 캘린더 제목: "17-18/(장기)안*성" — 기존 형식과 동일 (연락처는 피드에 없어 생략)
+function scEvTitle(start, end, marker, name) {
+  return start.split(":")[0] + "-" + end.split(":")[0] + "/" + marker + maskName(name);
+}
+
+// 제목을 직접 지정하는 종일 일정 등록 (스클 동기화·이관용)
+function calCreateTitled(date, title) {
+  var cal = calGet();
+  if (!cal) return "";
+  try {
+    var ev = cal.createAllDayEvent(title, mkDate(date, "00:00"));
+    try { ev.setColor(evColor()); } catch (ignore) {}
+    return ev.getId();
+  } catch (e) { return ""; }
+}
+
+function scStamp() { return SC_HANDLER + " · " + Utilities.formatDate(new Date(), tz(), "MM-dd HH:mm"); }
+
+// 5분마다 실행(setupSpaceCloudTrigger로 등록). 에디터에서 직접 실행해 결과 확인도 가능.
+function syncSpaceCloud() {
+  if (!optProp("SPACECLOUD_ICAL_URL")) return "SPACECLOUD_ICAL_URL 미설정 — 건너뜀";
+  var feed;
+  try { feed = fetchScFeed(); } catch (e) { return "피드 읽기 실패 — 변경 없음: " + e.message; }
+  // 안전장치: 피드가 통째로 비면(스클 장애 등) 오판하지 말고 이번 회차는 그대로 둠
+  if (!feed.length) return "피드 0건 — 변경 없음(안전장치)";
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var sh = sheet();
+    var rows = sh.getDataRange().getValues();
+    var rowById = {};   // sc:번호 → 행 인덱스
+    var slotRows = {};  // 스클 번호 없는 확정 행의 "날짜|시작|종료" → 행 인덱스 (승격 후보)
+    for (var i = 1; i < rows.length; i++) {
+      var rid = String(rows[i][COL.id]);
+      if (rid.indexOf(SC_ID_PREFIX) === 0) {
+        rowById[rid] = i;
+      } else if (String(rows[i][COL.status]) === ST_CONFIRMED) {
+        slotRows[fmtCell(rows[i][COL.date], "yyyy-MM-dd") + "|" + fmtTime(rows[i][COL.start]) + "|" + fmtTime(rows[i][COL.end])] = i;
+      }
+    }
+    var now = new Date();
+    var added = 0, changed = 0, canceled = 0, restored = 0, adopted = 0;
+    var inFeed = {};
+
+    for (var f = 0; f < feed.length; f++) {
+      var ev = feed[f];
+      var key = SC_ID_PREFIX + ev.uid;
+      inFeed[key] = true;
+      var parts = splitScName(ev.summary);
+
+      if (!(key in rowById)) {
+        // 같은 날짜·시간의 기존(비스클) 확정 행이 있으면 — 수기 입력·이관 건이 스클과 같은 예약이라는 뜻.
+        // 새 행/일정을 만들지 않고 그 행을 스클 건으로 승격 (중복 방지)
+        var slotKey = ev.date + "|" + ev.start + "|" + ev.end;
+        if (slotKey in slotRows) {
+          var ai = slotRows[slotKey], aRowNum = ai + 1;
+          sh.getRange(aRowNum, COL.id + 1).setValue(key);
+          sh.getRange(aRowNum, COL.name + 1).setValue(parts.name);
+          sh.getRange(aRowNum, COL.category + 1).setValue(SC_CATEGORY);
+          sh.getRange(aRowNum, COL.showName + 1).setValue(parts.marker);
+          sh.getRange(aRowNum, COL.handler + 1).setValue(scStamp());
+          logAction(SC_HANDLER, key, ev.date, ev.start, ev.end, String(rows[ai][COL.category]), SC_CATEGORY + " 연결");
+          delete slotRows[slotKey];
+          rowById[key] = ai;
+          adopted++;
+          continue;
+        }
+        // 신규 예약 → 행 추가(확정) + 캘린더 종일 일정
+        var calId = calCreateTitled(ev.date, scEvTitle(ev.start, ev.end, parts.marker, parts.name));
+        var newRow = sh.getLastRow() + 1;
+        sh.getRange(newRow, 1, 1, HEADERS.length).setValues([[
+          key, new Date(), ev.date, ev.start, ev.end, parts.name, "", "",
+          SC_CATEGORY, parts.marker, "", ST_CONFIRMED, calId, scStamp(),
+        ]]);
+        sh.getRange(newRow, COL.createdAt + 1).setNumberFormat("yyyy-mm-dd hh:mm");
+        logAction(SC_HANDLER, key, ev.date, ev.start, ev.end, "", ST_CONFIRMED);
+        added++;
+        continue;
+      }
+
+      var idx = rowById[key], r = rows[idx], rowNum = idx + 1;
+      var st = String(r[COL.status]);
+      var oldDate = fmtCell(r[COL.date], "yyyy-MM-dd"), oldStart = fmtTime(r[COL.start]), oldEnd = fmtTime(r[COL.end]);
+
+      if (st === ST_CONFIRMED && (oldDate !== ev.date || oldStart !== ev.start || oldEnd !== ev.end)) {
+        // 스클에서 날짜/시간 변경 → 행 갱신 + 일정 재생성
+        calDelete(String(r[COL.calId] || ""));
+        var movedCal = calCreateTitled(ev.date, scEvTitle(ev.start, ev.end, parts.marker, parts.name));
+        sh.getRange(rowNum, COL.date + 1).setValue(ev.date);
+        sh.getRange(rowNum, COL.start + 1).setValue(ev.start);
+        sh.getRange(rowNum, COL.end + 1).setValue(ev.end);
+        sh.getRange(rowNum, COL.calId + 1).setValue(movedCal);
+        sh.getRange(rowNum, COL.handler + 1).setValue(scStamp());
+        logAction(SC_HANDLER, key, ev.date, ev.start, ev.end, "확정(" + oldDate + " " + oldStart + "~" + oldEnd + ")", "확정(시간 변경)");
+        changed++;
+      } else if (st === ST_CANCELED && mkDate(ev.date, ev.end).getTime() > now.getTime()) {
+        // 취소 처리했던 건이 피드에 다시 있음(일시적 피드 결함 등) → 확정으로 복구
+        var backCal = calCreateTitled(ev.date, scEvTitle(ev.start, ev.end, parts.marker, parts.name));
+        sh.getRange(rowNum, COL.date + 1).setValue(ev.date);
+        sh.getRange(rowNum, COL.start + 1).setValue(ev.start);
+        sh.getRange(rowNum, COL.end + 1).setValue(ev.end);
+        sh.getRange(rowNum, COL.status + 1).setValue(ST_CONFIRMED);
+        sh.getRange(rowNum, COL.calId + 1).setValue(backCal);
+        sh.getRange(rowNum, COL.handler + 1).setValue(scStamp());
+        logAction(SC_HANDLER, key, ev.date, ev.start, ev.end, ST_CANCELED, ST_CONFIRMED + "(복구)");
+        restored++;
+      }
+    }
+
+    // 취소 감지: "종료 시각이 아직 안 지난" 확정 스클 행이 피드에 없으면 진짜 취소된 것.
+    // (피드는 진행 중·방금 끝난 건도 계속 주는 걸 실측으로 확인 — 아직 안 끝난 건이 없어졌다면 취소뿐)
+    // 이미 끝났거나 임박(5분 이내)한 건은 시간 경과로 빠졌을 수 있으므로 건드리지 않음.
+    for (var kid in rowById) {
+      if (inFeed[kid]) continue;
+      var ci = rowById[kid], cr = rows[ci], cRowNum = ci + 1;
+      if (String(cr[COL.status]) !== ST_CONFIRMED) continue;
+      var cDate = fmtCell(cr[COL.date], "yyyy-MM-dd"), cStart = fmtTime(cr[COL.start]), cEnd = fmtTime(cr[COL.end]);
+      if (mkDate(cDate, cEnd).getTime() <= now.getTime() + 5 * 60000) continue;
+      sh.getRange(cRowNum, COL.status + 1).setValue(ST_CANCELED);
+      var cCal = String(cr[COL.calId] || "");
+      if (cCal) { calDelete(cCal); sh.getRange(cRowNum, COL.calId + 1).setValue(""); }
+      sh.getRange(cRowNum, COL.handler + 1).setValue(scStamp());
+      logAction(SC_HANDLER, kid, cDate, cStart, cEnd, ST_CONFIRMED, ST_CANCELED);
+      canceled++;
+    }
+
+    var msg = "동기화 완료: 신규 " + added + " · 변경 " + changed + " · 취소 " + canceled +
+      (adopted ? " · 기존 행 연결 " + adopted : "") + (restored ? " · 복구 " + restored : "") + " (피드 " + feed.length + "건)";
+    Logger.log(msg);
+    return msg;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// 에디터에서 한 번 실행 → 5분마다 스클 동기화 트리거 등록 (여러 번 실행해도 중복 생성 안 됨)
+function setupSpaceCloudTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === "syncSpaceCloud") ScriptApp.deleteTrigger(triggers[i]);
+  }
+  ScriptApp.newTrigger("syncSpaceCloud").timeBased().everyMinutes(5).create();
+}
+
+/* ============================================================
+ *  캘린더 → 시트 일회성 이관 (에디터에서 1회 실행)
+ * ------------------------------------------------------------
+ *  수기로 관리해 온 캘린더 일정(2026년 2월~)을 시트에 '확정' 행으로 옮김.
+ *  - 반복 일정은 회차별 한 행씩 (구글이 자동으로 펼쳐 줌)
+ *  - 제목 "X/19-22/(장기)김*윤(1234)" → 19:00~22:00, 이름 김*윤 ('X/' 작업 표시는 제거)
+ *  - 이미 시트에 있는 건(캘린더ID 연결·같은 날짜/시간)은 건너뜀 → 여러 번 실행해도 안전
+ *  - 스클 피드와 날짜·시간이 같은 건은 스클 번호(sc:)를 달아 저장 → 동기화와 중복 안 됨
+ *  - 제목을 해석 못 한 일정은 실행 로그에 목록으로 보고
+ * ============================================================ */
+function importCalendarToSheet() {
+  var cal = calGet();
+  if (!cal) throw new Error("CALENDAR_ID가 설정되어 있지 않습니다.");
+  var events = cal.getEvents(new Date(2026, 0, 1), new Date(2027, 11, 31));
+  var sh = sheet();
+  var rows = sh.getDataRange().getValues();
+
+  var knownCalIds = {}, knownSlots = {}, knownScIds = {};
+  for (var i = 1; i < rows.length; i++) {
+    var cid = trim(rows[i][COL.calId]);
+    if (cid) knownCalIds[cid] = true;
+    var rid = String(rows[i][COL.id]);
+    if (rid.indexOf(SC_ID_PREFIX) === 0) knownScIds[rid] = true;
+    if (String(rows[i][COL.status]) !== ST_CANCELED) {
+      knownSlots[fmtCell(rows[i][COL.date], "yyyy-MM-dd") + "|" + fmtTime(rows[i][COL.start]) + "|" + fmtTime(rows[i][COL.end])] = true;
+    }
+  }
+
+  // 스클 피드(설정된 경우)와 대조 — 같은 날짜·시간이면 스클 예약으로 간주해 고유번호를 달아 줌
+  var feedBySlot = {};
+  try {
+    if (optProp("SPACECLOUD_ICAL_URL")) {
+      fetchScFeed().forEach(function (fe) { feedBySlot[fe.date + "|" + fe.start + "|" + fe.end] = fe; });
+    }
+  } catch (ignore) {}
+
+  var added = 0, skipped = 0, dup = 0, failed = [];
+  var stamp = "캘린더이관 · " + Utilities.formatDate(new Date(), tz(), "MM-dd HH:mm");
+  events.forEach(function (ev) {
+    var evId = "";
+    try { evId = ev.getId(); } catch (ignore) {}
+    var isRec = false;
+    try { isRec = ev.isRecurringEvent(); } catch (ignore) {}
+    if (!isRec && knownCalIds[evId]) { skipped++; return; } // 시스템이 만든(또는 이미 이관된) 일정
+
+    var date = Utilities.formatDate(ev.isAllDayEvent() ? ev.getAllDayStartDate() : ev.getStartTime(), tz(), "yyyy-MM-dd");
+    var parsed = parseCalTitle(ev.getTitle());
+    if (!parsed) { failed.push(date + " | " + ev.getTitle()); return; }
+
+    var slot = date + "|" + parsed.start + "|" + parsed.end;
+    if (knownSlots[slot]) { dup++; return; } // 같은 날짜·시간이 이미 시트에 있음 (이중 입력 또는 재실행)
+    knownSlots[slot] = true;
+
+    var fe = feedBySlot[slot];
+    var id, name, marker, category;
+    if (fe && !knownScIds[SC_ID_PREFIX + fe.uid]) {
+      var parts = splitScName(fe.summary);
+      id = SC_ID_PREFIX + fe.uid; name = parts.name; marker = parts.marker; category = SC_CATEGORY;
+      knownScIds[id] = true;
+    } else {
+      id = Utilities.getUuid(); name = parsed.name; marker = parsed.marker; category = IMPORT_CATEGORY;
+    }
+
+    // 캘린더ID 연결: 반복 일정 회차는 시리즈 전체가 같은 ID를 공유하므로 비워 둠
+    // (연결하면 이 행 하나를 취소할 때 시리즈 전체 일정이 지워질 수 있음)
+    var linkCalId = isRec ? "" : evId;
+    var newRow = sh.getLastRow() + 1;
+    sh.getRange(newRow, 1, 1, HEADERS.length).setValues([[
+      id, new Date(), date, parsed.start, parsed.end, name, parsed.phone4, "",
+      category, marker, "", ST_CONFIRMED, linkCalId, stamp,
+    ]]);
+    sh.getRange(newRow, COL.createdAt + 1).setNumberFormat("yyyy-mm-dd hh:mm");
+    added++;
+  });
+
+  var msg = "이관 완료: 추가 " + added + "건 · 건너뜀(기존 연결) " + skipped + "건 · 중복 생략 " + dup + "건" +
+    (failed.length ? "\n제목 해석 실패 " + failed.length + "건(직접 확인 필요):\n" + failed.join("\n") : "");
+  Logger.log(msg);
+  return msg;
+}
+
+// 캘린더 제목 해석: "X/19-22/(장기)김*윤(1234)" → {start,end,marker,name,phone4}. 형식이 다르면 null.
+function parseCalTitle(title) {
+  var t = trim(title).replace(/^X\s*\//i, ""); // 'X/' 작업 표시 제거
+  var m = t.match(/^(\d{1,2})\s*-\s*(\d{1,2})\s*\/\s*(.+)$/);
+  if (!m) return null;
+  var p2 = function (n) { return ("0" + n).slice(-2); };
+  var rest = trim(m[3]);
+  var marker = "";
+  var mk = rest.match(/^\(([^)]{1,8})\)\s*/);
+  if (mk) { marker = "(" + mk[1] + ")"; rest = trim(rest.slice(mk[0].length)); }
+  var phone4 = "";
+  var ph = rest.match(/[\/(]?\s*(\d{4})\)?\s*$/);
+  if (ph) { phone4 = ph[1]; rest = trim(rest.slice(0, ph.index)).replace(/[\/(]\s*$/, ""); }
+  var name = trim(rest);
+  if (!name) return null;
+  return { start: p2(m[1]) + ":00", end: p2(m[2]) + ":00", marker: marker, name: name, phone4: phone4 };
 }

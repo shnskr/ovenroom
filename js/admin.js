@@ -157,14 +157,20 @@
       card.className = "res-card " + cssStatus;
       const show = r.showName ? ` · ${escapeHtml(r.showName)}` : "";
       const created = r.createdAt ? `<div class="rc-created"><span class="rc-created-label">신청</span>${escapeHtml(fmtCreated(r.createdAt))}</div>` : "";
+      const tel = r.phone ? `<a class="rc-tel" href="tel:${escapeHtml(r.phone)}">${escapeHtml(r.phone)}</a>` : "";
       card.innerHTML =
         `<div class="rc-top"><span class="rc-when">${fmtD(r.date)} · ${r.start}~${r.end}</span><span class="badge ${cssStatus}">${escapeHtml(r.status)}</span></div>` +
-        `<div class="rc-name">${escapeHtml(r.name)}<a class="rc-tel" href="tel:${escapeHtml(r.phone)}">${escapeHtml(r.phone)}</a></div>` +
+        `<div class="rc-name">${escapeHtml(r.name)}${tel}</div>` +
         `<div class="rc-meta">${escapeHtml(catLabel(r))}${show} · ${r.people || 1}명 · ${fmtAmount(r.amount)}</div>` +
         created +
         `<div class="rc-foot">${r.handler ? `<span class="rc-handler">${escapeHtml(r.handler)}</span>` : "<span></span>"}<span class="rc-actions"></span></div>`;
       const cell = card.querySelector(".rc-actions");
-      actionsFor(r.status).forEach((a) => cell.appendChild(actionBtn(a.l, a.c, (btn) => change(r.id, a.s, btn))));
+      // 스페이스클라우드 예약은 피드가 5분마다 상태를 결정하므로 여기서 처리 불가 (스클 호스트센터에서 관리)
+      if (String(r.id).indexOf("sc:") === 0) {
+        cell.innerHTML = `<span class="rc-sc-note">스클에서 관리</span>`;
+      } else {
+        actionsFor(r.status).forEach((a) => cell.appendChild(actionBtn(a.l, a.c, (btn) => change(r.id, a.s, btn))));
+      }
       body.appendChild(card);
     });
   }

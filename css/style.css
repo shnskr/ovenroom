@@ -306,6 +306,8 @@ th { background: var(--cream-deep); color: var(--cookie-deep); font-weight: 800;
 .rc-handler { font-size: 0.75rem; color: #a58e78; }
 .rc-actions { display: flex; gap: 6px; margin-left: auto; }
 .rc-actions .mini { margin: 0; }
+/* 스페이스클라우드 예약: 처리 버튼 대신 안내 문구 (상태는 5분 동기화가 관리) */
+.rc-sc-note { font-size: 0.75rem; color: #a58e78; font-weight: 700; }
 .profile-actions { display: flex; gap: 8px; margin-top: 6px; }
 .profile-actions .btn-primary { flex: 1; }
 .badge { padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 800; white-space: nowrap; border: 1.5px solid var(--ink); }
