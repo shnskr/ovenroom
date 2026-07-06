@@ -51,9 +51,28 @@
   <main class="wrap" id="adminApp" style="display:none;">
     <section class="card">
       <div class="filters">
-        <label>시작일<br /><input type="text" id="fromDate" placeholder="시작일" /></label>
-        <label>종료일<br /><input type="text" id="toDate" placeholder="종료일" /></label>
-        <button class="btn-sm" id="reloadBtn">조회</button>
+        <label class="half">상태<br />
+          <select id="statusFilter">
+            <option value="대기" selected>대기</option>
+            <option value="확정">확정</option>
+            <option value="취소">취소</option>
+            <option value="">전체</option>
+          </select>
+        </label>
+        <label class="half">정렬<br />
+          <select id="sortSel">
+            <option value="created-asc" selected>요청시간 빠른순</option>
+            <option value="created-desc">요청시간 최신순</option>
+            <option value="date-asc">사용일 빠른순</option>
+            <option value="date-desc">사용일 늦은순</option>
+          </select>
+        </label>
+        <label>시작일<br /><input type="text" id="fromDate" placeholder="전체 기간" /></label>
+        <label>종료일<br /><input type="text" id="toDate" placeholder="전체 기간" /></label>
+        <div class="filter-actions">
+          <button class="btn-sm" id="reloadBtn">조회</button>
+          <button class="btn-sm ghost" id="clearDatesBtn">기간 초기화</button>
+        </div>
       </div>
     </section>
     <div class="res-cards" id="cardList"></div>

@@ -696,11 +696,13 @@ function createReservation(req) {
  *  관리자 API (ADMIN_TOKEN 필요)
  * ============================================================ */
 
-// 기간별 예약 목록 (개인정보 포함) — 관리자만
+// 예약 목록 (개인정보 포함) — 관리자만.
+// from/to(사용일 기준)와 status는 선택 — 비우면 전체.
 function getReservations(req) {
   var admin = requireAdmin(req);
   var from = req.from || "0000-00-00";
   var to = req.to || "9999-99-99";
+  var stFilter = trim(req.status);
   var nickMap = adminNickMap(); // 처리자 아이디 → 닉네임 표시 변환
   var rows = sheet().getDataRange().getValues();
   var list = [];
@@ -708,9 +710,11 @@ function getReservations(req) {
     var r = rows[i];
     var date = fmtCell(r[COL.date], "yyyy-MM-dd");
     if (date < from || date > to) continue;
+    if (stFilter && String(r[COL.status]) !== stFilter) continue;
     var cat = String(r[COL.category] || "");
     list.push({
       id: String(r[COL.id]), date: date,
+      createdAt: fmtCell(r[COL.createdAt], "yyyy-MM-dd HH:mm"),
       start: fmtTime(r[COL.start]), end: fmtTime(r[COL.end]),
       name: String(r[COL.name]), phone: fmtPhone(r[COL.phone]),
       people: r[COL.people],

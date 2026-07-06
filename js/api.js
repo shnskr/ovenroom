@@ -33,8 +33,8 @@ const API = {
   getCreditBalance(name, phone4) {
     return this._post("getCreditBalance", { name, phone4 });
   },
-  getReservations(auth, from, to) {
-    return this._post("getReservations", { adminId: auth.id, password: auth.pw, from, to });
+  getReservations(auth, from, to, status) {
+    return this._post("getReservations", { adminId: auth.id, password: auth.pw, from, to, status });
   },
   setStatus(auth, id, status) {
     return this._post("updateStatus", { adminId: auth.id, password: auth.pw, id, status });

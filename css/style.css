@@ -248,7 +248,9 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--c
 
 .filters { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin-bottom: 14px; }
 .filters label { font-size: 0.82rem; color: var(--cookie-deep); font-weight: 600; flex: 0 0 200px; min-width: 0; }
-.filters input { width: 100%; font-size: 0.9rem; }
+.filters label.half { flex: 0 0 150px; }
+.filters input, .filters select { width: 100%; font-size: 0.9rem; }
+.filter-actions { display: flex; gap: 8px; align-items: end; }
 .btn-sm {
   padding: 10px 16px; border: 2px solid var(--ink); border-radius: 12px;
   background: var(--mustard); color: var(--ink); cursor: pointer; font-weight: 700;
@@ -309,7 +311,9 @@ th { background: var(--cream-deep); color: var(--cookie-deep); font-weight: 800;
 
   .filters { gap: 8px 10px; }
   .filters label { flex: 1 1 100%; }
-  .filters .btn-sm { width: 100%; }
+  .filters label.half { flex: 1 1 calc(50% - 5px); }
+  .filter-actions { width: 100%; }
+  .filter-actions .btn-sm { flex: 1; }
 
   .res-cards { grid-template-columns: 1fr; gap: 11px; }
 }

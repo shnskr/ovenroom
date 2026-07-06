@@ -10,6 +10,7 @@
 
   const AUTH_KEY = "ovenroom_admin_auth";
   let myInfo = null; // 서버가 알려준 내 계정 정보 { id, nick }
+  let lastRows = []; // 마지막 조회 결과 (정렬 변경 시 재조회 없이 다시 그림)
   function auth() {
     try { return JSON.parse(sessionStorage.getItem(AUTH_KEY)); } catch (e) { return null; }
   }
@@ -28,28 +29,30 @@
   function seedDemo() {
     const today = dateStr(new Date());
     return [
-      { id: "d1", date: today, start: "14:00", end: "16:00", name: "김민지", phone: "010-1234-5678", people: 2, category: "general", showName: "", amount: 15000, status: "대기" },
-      { id: "d2", date: today, start: "18:00", end: "19:00", name: "이서준", phone: "010-2222-3333", people: 1, category: "member", showName: "", amount: 8000, status: "확정" },
-      { id: "d3", date: today, start: "20:00", end: "22:00", name: "박도윤", phone: "010-9876-5432", people: 4, category: "team", showName: "가을 정기공연", amount: 16000, status: "대기" },
+      { id: "d1", createdAt: today + " 09:15", date: today, start: "14:00", end: "16:00", name: "김민지", phone: "010-1234-5678", people: 2, category: "general", showName: "", amount: 15000, status: "대기" },
+      { id: "d2", createdAt: today + " 10:40", date: today, start: "18:00", end: "19:00", name: "이서준", phone: "010-2222-3333", people: 1, category: "member", showName: "", amount: 8000, status: "확정" },
+      { id: "d3", createdAt: today + " 11:02", date: today, start: "20:00", end: "22:00", name: "박도윤", phone: "010-9876-5432", people: 4, category: "team", showName: "가을 정기공연", amount: 16000, status: "대기" },
     ];
   }
 
   async function load() {
     const from = $("#fromDate").value;
     const to = $("#toDate").value;
+    const status = $("#statusFilter").value;
     const body = $("#cardList");
     body.innerHTML = `<div class="hint rc-empty">불러오는 중…</div>`;
     try {
       let rows;
       if (isDemo()) {
         if (!demoRows) demoRows = seedDemo();
-        rows = demoRows.filter((r) => r.date >= from && r.date <= to);
+        rows = demoRows.filter((r) => (!from || r.date >= from) && (!to || r.date <= to) && (!status || r.status === status));
       } else {
-        const res = await API.getReservations(auth(), from, to);
+        const res = await API.getReservations(auth(), from, to, status);
         rows = res.reservations || [];
         // 로그인한 관리자 닉네임 표시
         if (res.admin) { myInfo = res.admin; $(".subtitle").textContent = "예약 신청 관리 · " + res.admin.nick + "님"; }
       }
+      lastRows = rows;
       render(rows);
     } catch (e) {
       body.innerHTML = `<div class="hint rc-empty">${escapeHtml(e.message)}</div>`;
@@ -112,23 +115,31 @@
     return `${d.getMonth() + 1}/${d.getDate()}(${WK[d.getDay()]})`;
   }
 
+  // 정렬: 예약 요청시간(created) 또는 사용일(date) 기준, 오름/내림차순
+  function sortRows(rows) {
+    const parts = $("#sortSel").value.split("-");
+    const key = parts[0], dir = parts[1] === "desc" ? -1 : 1;
+    const val = (r) => (key === "created" ? r.createdAt || "" : r.date + " " + r.start);
+    return rows.slice().sort((a, b) => val(a).localeCompare(val(b)) * dir);
+  }
+
   function render(rows) {
     const body = $("#cardList");
     if (rows.length === 0) {
-      body.innerHTML = `<div class="hint rc-empty">해당 기간에 예약이 없습니다.</div>`;
+      body.innerHTML = `<div class="hint rc-empty">조건에 맞는 예약이 없습니다.</div>`;
       return;
     }
-    rows.sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
     body.innerHTML = "";
-    rows.forEach((r) => {
+    sortRows(rows).forEach((r) => {
       const cssStatus = STATUS_CSS[r.status] || "";
       const card = document.createElement("div");
       card.className = "res-card " + cssStatus;
       const show = r.showName ? ` · ${escapeHtml(r.showName)}` : "";
+      const created = r.createdAt ? `<span class="rc-created">신청 ${escapeHtml(r.createdAt.slice(5))}</span>` : "";
       card.innerHTML =
         `<div class="rc-top"><span class="rc-when">${fmtD(r.date)} · ${r.start}~${r.end}</span><span class="badge ${cssStatus}">${escapeHtml(r.status)}</span></div>` +
         `<div class="rc-name">${escapeHtml(r.name)}<a class="rc-tel" href="tel:${escapeHtml(r.phone)}">${escapeHtml(r.phone)}</a></div>` +
-        `<div class="rc-meta">${escapeHtml(catLabel(r))}${show} · ${r.people || 1}명 · ${fmtAmount(r.amount)}</div>` +
+        `<div class="rc-meta">${escapeHtml(catLabel(r))}${show} · ${r.people || 1}명 · ${fmtAmount(r.amount)}${created ? " · " : ""}${created}</div>` +
         `<div class="rc-foot">${r.handler ? `<span class="rc-handler">${escapeHtml(r.handler)}</span>` : "<span></span>"}<span class="rc-actions"></span></div>`;
       const cell = card.querySelector(".rc-actions");
       actionsFor(r.status).forEach((a) => cell.appendChild(actionBtn(a.l, a.c, (btn) => change(r.id, a.s, btn))));
@@ -186,12 +197,17 @@
   }
 
   function init() {
-    const today = new Date();
-    const weekLater = new Date(); weekLater.setDate(today.getDate() + 7);
-    // 예약 페이지와 같은 달력(flatpickr, "Y년 n월 j일 (요일)" 표시) — 값은 여전히 Y-m-d로 읽음
+    // 예약 페이지와 같은 달력(flatpickr) — 기본은 비움(전체 기간), 값은 Y-m-d로 읽음
     const fpOpts = { altInput: true, altFormat: "Y년 n월 j일 (D)", dateFormat: "Y-m-d", locale: "ko", disableMobile: true };
-    flatpickr("#fromDate", Object.assign({ defaultDate: today }, fpOpts));
-    flatpickr("#toDate", Object.assign({ defaultDate: weekLater }, fpOpts));
+    const fpFrom = flatpickr("#fromDate", fpOpts);
+    const fpTo = flatpickr("#toDate", fpOpts);
+    const appVisible = () => $("#adminApp").style.display === "block";
+    $("#statusFilter").addEventListener("change", () => { if (appVisible()) load(); });
+    $("#sortSel").addEventListener("change", () => { if (appVisible()) render(lastRows); });
+    $("#clearDatesBtn").addEventListener("click", () => {
+      fpFrom.clear(); fpTo.clear();
+      if (appVisible()) load();
+    });
 
     // 로그인: 서버 검증에 성공해야만 화면 전환 (실패하면 로그인 화면 그대로)
     $("#loginBtn").onclick = async () => {
@@ -201,11 +217,12 @@
       const btn = $("#loginBtn");
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>확인 중…';
       try {
-        const res = await API.getReservations({ id, pw }, $("#fromDate").value, $("#toDate").value);
+        const res = await API.getReservations({ id, pw }, $("#fromDate").value, $("#toDate").value, $("#statusFilter").value);
         setAuth(id, pw);
         showApp();
         if (res.admin) { myInfo = res.admin; $(".subtitle").textContent = "예약 신청 관리 · " + res.admin.nick + "님"; }
-        render(res.reservations || []); // 검증하며 받아온 목록 그대로 표시 (재요청 없음)
+        lastRows = res.reservations || [];
+        render(lastRows); // 검증하며 받아온 목록 그대로 표시 (재요청 없음)
       } catch (e) {
         if (/초기 비밀번호/.test(e.message)) {
           // 초기 비밀번호 인증 성공 → 비밀번호 설정부터
