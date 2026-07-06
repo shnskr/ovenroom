@@ -351,14 +351,15 @@ function calGet() {
   if (!calId) return null;
   try { return CalendarApp.getCalendarById(calId); } catch (e) { return null; }
 }
-// 이름 마스킹(가운데 가림): 2글자→앞1자+*, 3글자↑→첫·끝만 노출 (김달님→김*님, 남궁민수→남**수)
+// 이름 마스킹(끝 가림, 2026-07-06 통일): 2글자→김*, 3글자↑→앞 2글자만 노출 (김달님→김달*, 크리스찬→크리**)
+// 스클 앱 예약처럼 이미 끝이 가려져 오는 이름("장아*")도 이 규칙과 같은 모양이라 그대로 유지됨.
 function stars(k) { var s = ""; for (var i = 0; i < k; i++) s += "*"; return s; }
 function maskName(name) {
   name = trim(name);
   var n = name.length;
   if (n <= 1) return name;
   if (n === 2) return name.charAt(0) + "*";
-  return name.charAt(0) + stars(n - 2) + name.charAt(n - 1);
+  return name.slice(0, 2) + stars(n - 2);
 }
 // 제목: "시작시-종료시/마스킹이름(연락처 뒷4자리)" ("19:00"~"22:00", 김달님, 01012348627 → 19-22/김달*(8627))
 function evTitle(start, end, name, phone) {
@@ -1169,6 +1170,44 @@ function cleanupCalendarDupes() {
   }
   var msg = "캘린더 정리 완료: 중복 삭제 " + removed + "건 · 행 재연결 " + relinked + "건" +
     (report.length ? "\n삭제한 일정:\n" + report.join("\n") : "");
+  Logger.log(msg);
+  return msg;
+}
+
+/* ============================================================
+ *  캘린더 제목 일괄 갱신 (마스킹 규칙 변경 후 1회 실행)
+ * ------------------------------------------------------------
+ *  "확정 + 캘린더ID 연결 + 아직 안 끝난" 예약의 일정 제목을 현재 마스킹
+ *  규칙으로 다시 만든다. 과거 일정은 건드리지 않음 — 이관된 과거 건은
+ *  이름이 이미 마스킹된 상태라 다시 마스킹하면 뭉개지기 때문.
+ * ============================================================ */
+function retitleCalendarEvents() {
+  var cal = calGet();
+  if (!cal) throw new Error("CALENDAR_ID가 설정되어 있지 않습니다.");
+  var rows = sheet().getDataRange().getValues();
+  var now = new Date();
+  var updated = 0, missing = 0;
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][COL.status]) !== ST_CONFIRMED) continue;
+    var calId = trim(rows[i][COL.calId]);
+    if (!calId) continue;
+    var date = fmtCell(rows[i][COL.date], "yyyy-MM-dd");
+    var start = fmtTime(rows[i][COL.start]), end = fmtTime(rows[i][COL.end]);
+    if (mkDate(date, end).getTime() <= now.getTime()) continue; // 지난 건 제외
+    var name = trim(rows[i][COL.name]);
+    var title;
+    if (String(rows[i][COL.id]).indexOf(SC_ID_PREFIX) === 0) {
+      var parts = splitScName(name); // 이름 칸의 "(장기)" 표식을 제목용으로 분리
+      title = scEvTitle(start, end, parts.marker, parts.name);
+    } else {
+      title = evTitle(start, end, name, String(rows[i][COL.phone] || ""));
+    }
+    try {
+      var e = cal.getEventById(calId);
+      if (e) { e.setTitle(title); updated++; } else { missing++; }
+    } catch (err) { missing++; }
+  }
+  var msg = "제목 갱신 완료: " + updated + "건" + (missing ? " · 일정 못 찾음 " + missing + "건" : "");
   Logger.log(msg);
   return msg;
 }
