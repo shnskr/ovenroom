@@ -2,7 +2,7 @@ const CONFIG = {
   API_URL: "https://script.google.com/macros/s/AKfycbxGv6g8BrQb6arGV5aD6iaL9Gy-h0f74r4CKrDNw6vEI_53_StpNTLbtSbtbrW0Ndap/exec",
   CALENDAR_EMBED_URL: "https://calendar.google.com/calendar/embed?src=c4845e82ea7bc55fad6c6dc5c831de40ccc7d11f0b093bcf7ade08e2d433bdfb%40group.calendar.google.com&ctz=Asia%2FSeoul",
 
-  BUSINESS_NAME: "쿠키박스",
+  BUSINESS_NAME: "오븐룸",
   ROOM_LABEL: "오븐룸",
   BANK_ACCOUNT: "신한은행 110-630-872960 김지윤",
   KAKAO_CHANNEL_URL: "http://pf.kakao.com/_KWxiRX/chat",
@@ -13,10 +13,7 @@ const CONFIG = {
   BOOKABLE_DAYS_AHEAD: 0,
   MAX_BOOKING_MINUTES: 0,
 
-  ROOMS: [
-    { id: "oven-room", name: "오븐룸" },
-  ],
-
+  // 요금은 시트 '요금표' 탭에서 관리 — 아래 값은 통신 실패 시 쓰는 예비값
   PRICING: {
     weekdayBands: [
       { start: 0, end: 9, rate: 5000 },

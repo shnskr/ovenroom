@@ -8,8 +8,12 @@
   const CAT_LABEL = { general: "일반", member: "쿠키박스 단원", team: "공연팀", credit: "쿠금통" };
   let demoRows = null;
 
-  function token() { return sessionStorage.getItem("ovenroom_admin_token") || ""; }
-  function setToken(t) { sessionStorage.setItem("ovenroom_admin_token", t); }
+  const AUTH_KEY = "ovenroom_admin_auth";
+  let myInfo = null; // 서버가 알려준 내 계정 정보 { id, nick }
+  function auth() {
+    try { return JSON.parse(sessionStorage.getItem(AUTH_KEY)); } catch (e) { return null; }
+  }
+  function setAuth(id, pw) { sessionStorage.setItem(AUTH_KEY, JSON.stringify({ id, pw })); }
 
   function toast(msg, ok) {
     const t = $("#toast");
@@ -33,21 +37,62 @@
   async function load() {
     const from = $("#fromDate").value;
     const to = $("#toDate").value;
-    const body = $("#tableBody");
-    body.innerHTML = `<tr><td colspan="8" class="hint">불러오는 중…</td></tr>`;
+    const body = $("#cardList");
+    body.innerHTML = `<div class="hint rc-empty">불러오는 중…</div>`;
     try {
       let rows;
       if (isDemo()) {
         if (!demoRows) demoRows = seedDemo();
         rows = demoRows.filter((r) => r.date >= from && r.date <= to);
       } else {
-        const res = await API.getReservations(token(), from, to);
+        const res = await API.getReservations(auth(), from, to);
         rows = res.reservations || [];
+        // 로그인한 관리자 닉네임 표시
+        if (res.admin) { myInfo = res.admin; $(".subtitle").textContent = "예약 신청 관리 · " + res.admin.nick + "님"; }
       }
       render(rows);
     } catch (e) {
-      body.innerHTML = `<tr><td colspan="8" class="hint">${e.message}</td></tr>`;
-      if (/토큰|권한|unauthorized/i.test(e.message)) showLogin();
+      body.innerHTML = `<div class="hint rc-empty">${escapeHtml(e.message)}</div>`;
+      if (/초기 비밀번호/.test(e.message)) { toast("먼저 비밀번호를 설정해 주세요."); openProfile(true); return; }
+      if (/토큰|권한|비밀번호|unauthorized/i.test(e.message)) showLogin();
+    }
+  }
+
+  // 내 정보 변경 창 — 초기 비밀번호로 들어온 첫 로그인도 이 창에서 설정
+  function openProfile(firstLogin) {
+    const a = auth() || {};
+    $("#npId").value = (myInfo && myInfo.id) || a.id || "";
+    $("#npNick").value = (myInfo && myInfo.nick) || "";
+    $("#npPw").value = ""; $("#npPw2").value = "";
+    $("#profileHint").textContent = firstLogin
+      ? "첫 로그인입니다. 새 비밀번호를 설정해야 사용할 수 있어요."
+      : "바꿀 항목만 입력하세요. 비워두면 그대로 유지됩니다.";
+    $("#profileGate").style.display = "flex";
+  }
+  function closeProfile() { $("#profileGate").style.display = "none"; }
+
+  async function saveProfile() {
+    const a = auth();
+    if (!a) { closeProfile(); showLogin(); return; }
+    const newId = $("#npId").value.trim();
+    const newNick = $("#npNick").value.trim();
+    const p1 = $("#npPw").value.trim(), p2 = $("#npPw2").value.trim();
+    if ((p1 || p2) && p1 !== p2) { toast("비밀번호 두 입력이 서로 달라요."); return; }
+    const changes = {};
+    if (newId && newId !== a.id) changes.newId = newId;
+    if (newNick && (!myInfo || newNick !== myInfo.nick)) changes.newNick = newNick;
+    if (p1) changes.newPassword = p1;
+    if (!Object.keys(changes).length) { closeProfile(); return; }
+    if (isDemo()) { toast("데모 모드에서는 변경할 수 없어요."); return; }
+    try {
+      const res = await API.updateProfile(a, changes);
+      setAuth(res.id, p1 || a.pw);
+      myInfo = res;
+      closeProfile();
+      toast("내 정보가 변경되었습니다.", true);
+      load();
+    } catch (e) {
+      toast(e.message);
     }
   }
 
@@ -57,30 +102,33 @@
     return [{ l: "확정", c: "ok", s: "확정" }];
   }
 
+  const WK = ["일", "월", "화", "수", "목", "금", "토"];
+  function fmtD(s) {
+    const d = new Date(s + "T00:00:00");
+    return `${d.getMonth() + 1}/${d.getDate()}(${WK[d.getDay()]})`;
+  }
+
   function render(rows) {
-    const body = $("#tableBody");
+    const body = $("#cardList");
     if (rows.length === 0) {
-      body.innerHTML = `<tr><td colspan="8" class="hint">해당 기간에 예약이 없습니다.</td></tr>`;
+      body.innerHTML = `<div class="hint rc-empty">해당 기간에 예약이 없습니다.</div>`;
       return;
     }
     rows.sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
     body.innerHTML = "";
     rows.forEach((r) => {
-      const tr = document.createElement("tr");
       const cssStatus = STATUS_CSS[r.status] || "";
-      tr.className = cssStatus;
-      tr.innerHTML =
-        `<td data-label="일시">${r.date}<br><span class="muted">${r.start}~${r.end}</span></td>` +
-        `<td data-label="예약자">${escapeHtml(r.name)}<br><span class="muted">${escapeHtml(r.phone)}</span></td>` +
-        `<td data-label="인원">${r.people || 1}명</td>` +
-        `<td data-label="구분">${escapeHtml(catLabel(r))}</td>` +
-        `<td data-label="공연명">${escapeHtml(r.showName || "")}</td>` +
-        `<td data-label="입금액">${fmtAmount(r.amount)}</td>` +
-        `<td data-label="상태"><span class="badge ${cssStatus}">${escapeHtml(r.status)}</span></td>` +
-        `<td class="actions" data-label="관리"></td>`;
-      const cell = tr.querySelector(".actions");
-      actionsFor(r.status).forEach((a) => cell.appendChild(actionBtn(a.l, a.c, () => change(r.id, a.s))));
-      body.appendChild(tr);
+      const card = document.createElement("div");
+      card.className = "res-card " + cssStatus;
+      const show = r.showName ? ` · ${escapeHtml(r.showName)}` : "";
+      card.innerHTML =
+        `<div class="rc-top"><span class="rc-when">${fmtD(r.date)} · ${r.start}~${r.end}</span><span class="badge ${cssStatus}">${escapeHtml(r.status)}</span></div>` +
+        `<div class="rc-name">${escapeHtml(r.name)}<a class="rc-tel" href="tel:${escapeHtml(r.phone)}">${escapeHtml(r.phone)}</a></div>` +
+        `<div class="rc-meta">${escapeHtml(catLabel(r))}${show} · ${r.people || 1}명 · ${fmtAmount(r.amount)}</div>` +
+        `<div class="rc-foot">${r.handler ? `<span class="rc-handler">${escapeHtml(r.handler)}</span>` : "<span></span>"}<span class="rc-actions"></span></div>`;
+      const cell = card.querySelector(".rc-actions");
+      actionsFor(r.status).forEach((a) => cell.appendChild(actionBtn(a.l, a.c, (btn) => change(r.id, a.s, btn))));
+      body.appendChild(card);
     });
   }
 
@@ -88,24 +136,32 @@
     const b = document.createElement("button");
     b.className = "mini " + cls;
     b.textContent = label;
-    b.onclick = fn;
+    b.onclick = () => fn(b);
     return b;
   }
 
-  async function change(id, status) {
+  async function change(id, status, btn) {
     if (status === "취소" && !confirm("이 예약을 취소할까요? 캘린더 일정이 삭제됩니다.")) return;
+    // 처리 중: 같은 행 버튼 잠그고 누른 버튼에 스피너 표시 (성공 시 load()가 표를 새로 그림)
+    const cellBtns = btn.closest(".rc-actions").querySelectorAll("button.mini");
+    const label = btn.textContent;
+    cellBtns.forEach((b) => (b.disabled = true));
+    btn.innerHTML = `<span class="spinner"></span>처리중`;
     try {
       if (isDemo()) {
         const row = demoRows.find((r) => r.id === id);
         if (row) row.status = status;
         toast("데모 모드: 상태가 변경되었습니다.", true);
       } else {
-        await API.setStatus(token(), id, status);
-        toast("변경되었습니다.", true);
+        const res = await API.setStatus(auth(), id, status);
+        if (res && res.creditWarning) toast("변경되었습니다 · ⚠️ " + res.creditWarning);
+        else toast("변경되었습니다.", true);
       }
       load();
     } catch (e) {
       toast(e.message);
+      btn.textContent = label;
+      cellBtns.forEach((b) => (b.disabled = false));
     }
   }
 
@@ -119,20 +175,28 @@
   function init() {
     const today = new Date();
     const weekLater = new Date(); weekLater.setDate(today.getDate() + 7);
-    $("#fromDate").value = dateStr(today);
-    $("#toDate").value = dateStr(weekLater);
+    // 예약 페이지와 같은 달력(flatpickr, "Y년 n월 j일 (요일)" 표시) — 값은 여전히 Y-m-d로 읽음
+    const fpOpts = { altInput: true, altFormat: "Y년 n월 j일 (D)", dateFormat: "Y-m-d", locale: "ko", disableMobile: true };
+    flatpickr("#fromDate", Object.assign({ defaultDate: today }, fpOpts));
+    flatpickr("#toDate", Object.assign({ defaultDate: weekLater }, fpOpts));
 
     $("#loginBtn").onclick = () => {
-      const t = $("#tokenInput").value.trim();
-      if (!t) return;
-      setToken(t);
+      const id = $("#idInput").value.trim();
+      const pw = $("#pwInput").value.trim();
+      if (!id || !pw) { toast("아이디와 비밀번호를 입력해 주세요."); return; }
+      setAuth(id, pw);
       showApp();
       load();
     };
-    $("#logoutBtn").onclick = (e) => { e.preventDefault(); sessionStorage.removeItem("ovenroom_admin_token"); showLogin(); };
+    $("#pwInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#loginBtn").click(); });
+    $("#logoutBtn").onclick = (e) => { e.preventDefault(); sessionStorage.removeItem(AUTH_KEY); myInfo = null; showLogin(); };
+    $("#profileBtn").onclick = (e) => { e.preventDefault(); openProfile(false); };
+    $("#profileSaveBtn").onclick = saveProfile;
+    $("#profileCancelBtn").onclick = closeProfile;
+    $("#profileGate").addEventListener("click", (e) => { if (e.target.id === "profileGate") closeProfile(); }); // 바깥(어두운 영역) 클릭 시 닫기
     $("#reloadBtn").onclick = load;
 
-    if (isDemo() || token()) { showApp(); load(); } else { showLogin(); }
+    if (isDemo() || auth()) { showApp(); load(); } else { showLogin(); }
   }
 
   document.addEventListener("DOMContentLoaded", init);

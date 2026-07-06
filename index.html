@@ -36,6 +36,7 @@
         <label id="dateField">날짜 <span class="label-tip" id="dateTip">하루만 선택</span>
           <input type="text" id="date" placeholder="날짜 선택" />
         </label>
+        <div class="busy-info" id="busyInfo" hidden></div>
 
         <div class="recurring" id="recurringBox" hidden>
           <div class="rec-title">매주 반복 설정</div>
@@ -75,9 +76,10 @@
         <p class="hint" id="multiHint">선택한 모든 날짜에 같은 시간대로 신청됩니다.</p>
         <div class="date-summary" id="dateSummary" hidden></div>
         <div class="total-time" id="totalTimeBox">총 시간 <b id="totalTimeTop">-</b><span class="total-meta" id="totalTimeMetaTop"></span></div>
+        <div class="conflict-box" id="conflictBox" hidden></div>
 
         <label>이름 <input type="text" id="name" required maxlength="30" autocomplete="name" /></label>
-        <label>연락처 (숫자만) <input type="tel" id="phone" required inputmode="numeric" pattern="[0-9]*" placeholder="숫자만 입력 (예: 01012345678)" maxlength="11" autocomplete="tel" /></label>
+        <label>연락처 (숫자만) <input type="tel" id="phone" required inputmode="numeric" pattern="[0-9]{10,11}" placeholder="숫자만 입력 (예: 01012345678)" minlength="10" maxlength="11" autocomplete="tel" /></label>
         <label>인원 <input type="number" id="people" min="1" max="20" value="1" /></label>
 
         <label>구분
@@ -91,7 +93,12 @@
         </label>
         <div class="category-detail" id="categoryDetail"></div>
 
-        <p class="notice">신청 후 <b>다음 화면의 정보를 캡쳐하여 카카오톡 채널로 보내주셔야</b> 예약이 확정됩니다.</p>
+        <label class="consent">
+          <input type="checkbox" id="privacyAgree" />
+          <span>개인정보 수집·이용에 동의합니다. <a href="privacy.html" target="_blank" rel="noopener">전문 보기</a></span>
+        </label>
+
+        <p class="notice">예약 신청 후 <b>다음 장의 화면 정보를 캡쳐하여 카카오톡 채널로 보내주셔야</b> 예약이 확정됩니다.</p>
         <button type="submit" class="btn-primary" id="submitBtn">예약 신청</button>
       </form>
     </section>
@@ -110,6 +117,17 @@
       <button type="button" class="btn-primary" id="newBookingBtn">새 예약하기</button>
     </section>
   </main>
+
+  <footer class="site-footer">
+    <div class="wrap"><a href="privacy.html" target="_blank" rel="noopener">개인정보 처리방침</a></div>
+  </footer>
+
+  <div class="modal-overlay" id="privacyModal" hidden>
+    <div class="privacy-modal">
+      <iframe class="privacy-frame" id="privacyFrame" title="개인정보 처리방침"></iframe>
+      <button type="button" class="btn-primary" id="privacyCloseBtn">닫기</button>
+    </div>
+  </div>
 
   <div class="toast" id="toast"></div>
 

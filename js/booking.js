@@ -8,6 +8,9 @@
   const isDemo = () => String(CONFIG.API_URL).includes("PASTE_YOUR");
   let fp = null;
   let mode = "single";
+  let creditRemain = null; // 쿠금통 조회된 잔여 시간 (null = 미조회)
+  let busyMap = {}; // 날짜("YYYY-MM-DD") → 예약된 시간대 [{start,end}] (백그라운드 조회 결과)
+  let busyFetchId = 0; // 빠른 재선택 시 최신 조회 결과만 반영
 
   let toastTimer = null;
   function toast(msg, ok) {
@@ -63,9 +66,80 @@
       minDate: "today",
       maxDate: maxDate(),
       disableMobile: true,
-      onChange: () => { updateSummary(); fillStartTimes(); },
+      onChange: () => { updateSummary(); fillStartTimes(); fetchBusy(); },
     };
     fp = flatpickr("#date", opts);
+  }
+
+  // 선택한 날짜들의 예약 현황을 백그라운드로 미리 조회.
+  // 실패하거나 아직 도착 전이어도 신청은 그대로 진행됨(서버가 최종 검증).
+  async function fetchBusy() {
+    const dates = selectedDates().map(dateStr);
+    if (!dates.length) { updateConflictUI(); return; }
+    const id = ++busyFetchId;
+    try {
+      let res;
+      if (isDemo()) { await new Promise((r) => setTimeout(r, 200)); res = { busy: {} }; }
+      else res = await API.getAvailability(dates);
+      if (id !== busyFetchId) return;
+      Object.assign(busyMap, res.busy || {});
+      updateConflictUI();
+    } catch (e) { /* 조회 실패는 조용히 무시 */ }
+  }
+
+  // 선택한 시간과 겹치는 날짜 목록 [{date, pending}] — pending은 겹친 것 중 대기 신청 포함 여부.
+  // 아직 조회 안 된 날짜는 겹침 없음으로 취급(서버가 최종 검증).
+  function conflictDates() {
+    const start = $("#startTime").value, end = $("#endTime").value;
+    if (!start || !end || toMin(end) <= toMin(start)) return [];
+    const sMin = toMin(start), eMin = toMin(end);
+    return selectedDates().map(dateStr).map((d) => {
+      const hits = (busyMap[d] || []).filter((b) => sMin < toMin(b.end) && toMin(b.start) < eMin);
+      return hits.length ? { date: d, pending: hits.some((b) => b.pending) } : null;
+    }).filter(Boolean);
+  }
+
+  function fmtDateShort(s) {
+    const d = new Date(s + "T00:00:00");
+    return `${d.getMonth() + 1}월 ${d.getDate()}일(${WK[d.getDay()]})`;
+  }
+
+  function updateConflictUI() {
+    // 하루 모드: 그 날 이미 예약된 시간을 미리 표시
+    const busyInfo = $("#busyInfo");
+    const dates = selectedDates().map(dateStr);
+    const dayBusy = mode === "single" && dates.length === 1 ? busyMap[dates[0]] || [] : [];
+    if (dayBusy.length) {
+      const list = dayBusy.slice().sort((a, b) => toMin(a.start) - toMin(b.start))
+        .map((b) => `${b.start}~${b.end}${b.pending ? " (대기 중)" : ""}`).join(", ");
+      busyInfo.innerHTML = `📌 이 날 이미 예약된 시간: ${list}` +
+        (dayBusy.some((b) => b.pending) ? '<br><span class="busy-sub">\'대기 중\'은 접수된 신청이라 아직 캘린더에는 보이지 않아요.</span>' : "");
+      busyInfo.hidden = false;
+    } else busyInfo.hidden = true;
+
+    // 겹침 경고
+    const box = $("#conflictBox");
+    const conf = conflictDates();
+    if (!conf.length) { box.hidden = true; box.innerHTML = ""; return; }
+    const anyPending = conf.some((c) => c.pending);
+    if (dates.length === 1) {
+      box.innerHTML = anyPending
+        ? "⚠️ 선택한 시간에 대기 중인 신청이 있어 예약할 수 없어요. 다른 시간을 선택해 주세요.<br>(대기 중인 신청은 캘린더에 표시되지 않아요)"
+        : "⚠️ 선택한 시간에 이미 예약이 있어요. 다른 시간을 선택해 주세요.";
+    } else {
+      box.innerHTML =
+        `⚠️ <b>${conf.map((c) => fmtDateShort(c.date)).join(", ")}</b>은 선택한 시간에 이미 예약이 있어요.` +
+        (anyPending ? "<br>이 중 일부는 확정 전(대기)이라 캘린더에는 보이지 않아요." : "") +
+        "<br>시간을 바꾸거나, 아래 버튼으로 겹치는 날짜만 뺄 수 있어요." +
+        '<button type="button" class="btn-sm conflict-remove" id="conflictRemoveBtn">겹치는 날짜 빼고 계속</button>';
+      $("#conflictRemoveBtn").onclick = () => {
+        const confSet = conf.map((c) => c.date);
+        const keep = selectedDates().filter((d) => confSet.indexOf(dateStr(d)) === -1);
+        fp.setDate(keep, true);
+        toast("겹치는 날짜를 뺐어요.", true);
+      };
+    }
+    box.hidden = false;
   }
 
   function initRepeatPickers() {
@@ -86,6 +160,21 @@
     makeMainPicker();
     updateSummary();
     fillStartTimes();
+    fetchBusy();
+  }
+
+  // 요금표를 시트에서 불러와 반영 — 실패하면 config.js 기본값으로 동작.
+  // 입금액 최종 기준은 어차피 서버 계산이라 여기 값은 표시용.
+  async function fetchPricing() {
+    if (isDemo()) return;
+    try {
+      const res = await API.getPricing();
+      if (res && res.pricing && res.pricing.weekdayBands && res.pricing.weekdayBands.length) {
+        Object.assign(CONFIG.PRICING, res.pricing);
+        if ($("#totalAmount")) renderCategoryDetail(); // 가격표가 떠 있으면 새 값으로 다시 그림
+        else updateTotal();
+      }
+    } catch (e) { /* 기본값으로 동작 */ }
   }
 
   function priceTableHtml() {
@@ -139,6 +228,7 @@
   }
 
   function updateTotal() {
+    updateConflictUI();
     const dates = selectedDates();
     const start = $("#startTime").value, end = $("#endTime").value;
     const hours = start && end && toMin(end) > toMin(start) ? (toMin(end) - toMin(start)) / 60 : 0;
@@ -156,6 +246,18 @@
       use.textContent = totalHours ? totalHours + "시간" : "-";
       const useMeta = $("#creditUseMeta");
       if (useMeta) useMeta.textContent = dates.length > 1 && hours ? ` (${dates.length}일 · 하루 ${hours}시간)` : "";
+      const remain = $("#creditRemain");
+      if (remain) remain.textContent = creditRemain == null ? "-" : creditRemain + "시간";
+      const note = $("#creditNote");
+      if (note) {
+        if (creditRemain != null && totalHours > creditRemain) {
+          note.textContent = `⚠️ 예약 요청시간이 잔여 시간보다 ${totalHours - creditRemain}시간 많아 신청할 수 없어요.`;
+          note.classList.add("warn");
+        } else {
+          note.textContent = "위에 입력한 이름·연락처로 잔여 시간을 조회합니다.";
+          note.classList.remove("warn");
+        }
+      }
       return;
     }
     const amt = $("#totalAmount");
@@ -174,10 +276,12 @@
     if (!c) { box.innerHTML = ""; updateTotal(); return; }
     let html = "";
     if (c === "credit") {
+      creditRemain = null;
       html += '<div class="credit-box">' +
         '<div class="credit-row"><span>예약 요청시간</span><span class="credit-val"><b id="creditUse">-</b><span class="total-meta" id="creditUseMeta"></span></span></div>' +
-        '<div class="credit-row"><span>잔여 시간</span><b>시트 연동 후 표시</b></div>' +
-        "</div>";
+        '<div class="credit-row"><span>잔여 시간</span><span class="credit-val"><b id="creditRemain">-</b><button type="button" class="credit-check" id="creditCheckBtn">조회</button></span></div>' +
+        "</div>" +
+        '<div class="credit-note" id="creditNote">위에 입력한 이름·연락처로 잔여 시간을 조회합니다.</div>';
     } else {
       if (c === "team") {
         html += '<label>현재 참여 중인 공연명 <input type="text" id="showName" maxlength="50" placeholder="공연명" /></label>';
@@ -194,7 +298,34 @@
       html += '<div class="total-box"><span class="tb-item">입금액 <b id="totalAmount">-</b></span><span class="tb-item">총 시간 <b id="totalTime">-</b><span class="total-meta" id="totalMetaBottom"></span></span></div>';
     }
     box.innerHTML = html;
+    const ck = $("#creditCheckBtn");
+    if (ck) ck.onclick = checkCredit;
     updateTotal();
+  }
+
+  // 쿠금통 잔여 시간 조회 — 폼에 입력된 이름 + 연락처 뒷 4자리 사용
+  async function checkCredit() {
+    const name = $("#name").value.trim();
+    const phone4 = $("#phone").value.replace(/\D/g, "").slice(-4);
+    if (!name || phone4.length !== 4) { toast("위의 이름과 연락처를 먼저 입력해 주세요."); return; }
+    const btn = $("#creditCheckBtn");
+    btn.disabled = true; btn.textContent = "조회 중…";
+    try {
+      let res;
+      if (isDemo()) {
+        await new Promise((r) => setTimeout(r, 400));
+        res = { found: true, remaining: 10 };
+      } else {
+        res = await API.getCreditBalance(name, phone4);
+      }
+      creditRemain = res.found ? res.remaining : null;
+      if (!res.found) toast("쿠금통 회원 정보를 찾을 수 없어요. 이름과 연락처를 확인해 주세요.");
+      updateTotal();
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      btn.disabled = false; btn.textContent = "조회";
+    }
   }
 
   function selectedDates() {
@@ -308,7 +439,7 @@
     ];
     if (p.category === "team" && p.showName) rows.push(["공연명", p.showName]);
     if (p.category === "credit") {
-      rows.push(["잔여 시간", "시트 연동 후 표시"]);
+      rows.push(["잔여 시간", creditRemain == null ? "미조회" : creditRemain + "시간 (확정 시 차감)"]);
     } else {
       rows.push(["입금액", (total || 0).toLocaleString() + "원"]);
     }
@@ -343,6 +474,19 @@
     window.scrollTo(0, 0);
   }
 
+  // 쿠금통: 신청 직전에 잔여 시간을 새로 조회해 부족하면 신청을 막음 (서버에서도 한 번 더 검증)
+  async function assertCreditEnough(p) {
+    const phone4 = p.phone.replace(/\D/g, "").slice(-4);
+    let res;
+    if (isDemo()) res = { found: true, remaining: 10 };
+    else res = await API.getCreditBalance(p.name, phone4);
+    if (!res.found) throw new Error("쿠금통 회원 정보를 찾을 수 없어요. 이름과 연락처를 확인해 주세요.");
+    creditRemain = res.remaining;
+    updateTotal();
+    const hours = ((toMin(p.end) - toMin(p.start)) / 60) * p.dates.length;
+    if (hours > res.remaining) throw new Error(`잔여 시간이 부족해 신청할 수 없어요. (잔여 ${res.remaining}시간 · 요청 ${hours}시간)`);
+  }
+
   async function submit(e) {
     e.preventDefault();
     const dates = selectedDates().map(dateStr);
@@ -359,21 +503,28 @@
     if (dates.length === 0) { toast("날짜를 선택해 주세요."); return; }
     if (!payload.start || !payload.end) { toast("이용 시간을 선택해 주세요."); return; }
     if (!payload.name || !payload.phone) { toast("이름과 연락처를 입력해 주세요."); return; }
+    if (payload.phone.replace(/\D/g, "").length < 10) { toast("연락처를 숫자 10자리 이상 입력해 주세요."); return; }
     if (!payload.category) { toast("구분을 선택해 주세요."); return; }
     if (payload.category === "team" && !payload.showName) { toast("공연명을 입력해 주세요."); return; }
     if (toMin(payload.end) <= toMin(payload.start)) { toast("종료 시간을 시작 시간 이후로 골라 주세요."); return; }
+    if (conflictDates().length) { toast("이미 예약이 있는 시간이에요. 날짜나 시간을 바꿔 주세요."); return; }
+    if (!$("#privacyAgree").checked) { toast("개인정보 수집·이용에 동의해 주세요."); return; }
 
     const total = calcTotal();
     payload.amount = total; // 쿠금통이면 null (입금액 없음)
     const btn = $("#submitBtn");
     btn.disabled = true; btn.textContent = "신청 중…";
     try {
+      if (payload.category === "credit") await assertCreditEnough(payload);
+      let finalTotal = total;
       if (isDemo()) {
         await new Promise((r) => setTimeout(r, 400));
       } else {
-        await API.createReservation(payload);
+        const res = await API.createReservation(payload);
+        // 완료화면 입금액은 서버가 요금표 기준으로 계산한 값을 우선 사용
+        if (res && res.amount !== undefined && res.amount !== null && res.amount !== "") finalTotal = res.amount;
       }
-      showConfirm(payload, total);
+      showConfirm(payload, finalTotal);
       $("#bookingForm").reset();
       fp.clear();
       renderCategoryDetail();
@@ -389,6 +540,7 @@
   function init() {
     if (isDemo()) toast("데모 모드 미리보기");
     renderCalendar();
+    fetchPricing();
     initRepeatPickers();
     document.querySelectorAll(".mode-tab").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
     $("#startTime").addEventListener("change", fillEndTimes);
@@ -396,7 +548,23 @@
     $("#people").addEventListener("input", updateTotal);
     $("#repeatFillBtn").addEventListener("click", fillWeekly);
     $("#phone").addEventListener("input", (e) => { e.target.value = e.target.value.replace(/\D/g, ""); });
+    // 이름/연락처가 바뀌면 조회했던 쿠금통 잔여 시간은 무효
+    ["#name", "#phone"].forEach((sel) => $(sel).addEventListener("input", () => {
+      if (creditRemain != null) { creditRemain = null; updateTotal(); }
+    }));
     $("#category").addEventListener("change", renderCategoryDetail);
+    // 처리방침은 페이지 이동/새 탭 없이 팝업으로 — 입력하던 내용이 유지됨
+    const openPrivacy = (e) => {
+      e.preventDefault();
+      $("#privacyFrame").src = "privacy.html"; // 열 때마다 처음부터
+      $("#privacyModal").hidden = false;
+    };
+    const pvLink = document.querySelector(".consent a");
+    if (pvLink) pvLink.addEventListener("click", openPrivacy);
+    const footLink = document.querySelector(".site-footer a");
+    if (footLink) footLink.addEventListener("click", openPrivacy);
+    $("#privacyCloseBtn").addEventListener("click", () => { $("#privacyModal").hidden = true; });
+    $("#privacyModal").addEventListener("click", (e) => { if (e.target.id === "privacyModal") e.currentTarget.hidden = true; });
     $("#bookingForm").addEventListener("submit", submit);
     $("#newBookingBtn").addEventListener("click", () => {
       $("#confirmView").hidden = true;

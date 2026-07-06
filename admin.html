@@ -6,6 +6,7 @@
   <title>관리자 · 오븐룸 예약</title>
   <link rel="icon" type="image/png" href="img/cookie.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -15,43 +16,55 @@
         <h1 class="brand">🍪 오븐룸 관리자</h1>
         <p class="subtitle">예약 신청 관리</p>
       </div>
-      <a href="#" id="logoutBtn" class="ghost-link">로그아웃</a>
+      <div class="header-links">
+        <a href="#" id="profileBtn" class="ghost-link">내 정보 변경</a>
+        <a href="#" id="logoutBtn" class="ghost-link">로그아웃</a>
+      </div>
     </div>
   </header>
 
   <div class="login-gate" id="loginGate" style="display:none;">
     <div class="login-box">
       <h2>관리자 로그인</h2>
-      <p class="hint">관리자 토큰을 입력하세요.</p>
-      <input type="password" id="tokenInput" placeholder="관리자 토큰" />
+      <p class="hint">아이디와 비밀번호를 입력하세요.</p>
+      <input type="text" id="idInput" placeholder="아이디" autocomplete="username" />
+      <input type="password" id="pwInput" placeholder="비밀번호" autocomplete="current-password" />
       <button class="btn-primary" id="loginBtn">입장</button>
+    </div>
+  </div>
+
+  <div class="login-gate modal" id="profileGate" style="display:none;">
+    <div class="login-box">
+      <h2>내 정보 변경</h2>
+      <p class="hint" id="profileHint">바꿀 항목만 입력하세요. 비워두면 그대로 유지됩니다.</p>
+      <input type="text" id="npId" placeholder="아이디" autocomplete="off" />
+      <input type="text" id="npNick" placeholder="닉네임 (처리자 표시용)" autocomplete="off" />
+      <input type="password" id="npPw" placeholder="새 비밀번호 (6자 이상)" autocomplete="new-password" />
+      <input type="password" id="npPw2" placeholder="새 비밀번호 확인" autocomplete="new-password" />
+      <div class="profile-actions">
+        <button class="btn-primary" id="profileSaveBtn">저장</button>
+        <button class="btn-sm" id="profileCancelBtn">취소</button>
+      </div>
     </div>
   </div>
 
   <main class="wrap" id="adminApp" style="display:none;">
     <section class="card">
       <div class="filters">
-        <label>시작일<br /><input type="date" id="fromDate" /></label>
-        <label>종료일<br /><input type="date" id="toDate" /></label>
+        <label>시작일<br /><input type="text" id="fromDate" placeholder="시작일" /></label>
+        <label>종료일<br /><input type="text" id="toDate" placeholder="종료일" /></label>
         <button class="btn-sm" id="reloadBtn">조회</button>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>일시</th><th>예약자</th><th>인원</th><th>구분</th><th>공연명</th><th>입금액</th><th>상태</th><th>관리</th>
-            </tr>
-          </thead>
-          <tbody id="tableBody"></tbody>
-        </table>
-      </div>
     </section>
+    <div class="res-cards" id="cardList"></div>
   </main>
 
   <div class="toast" id="toast"></div>
 
   <script src="js/config.js"></script>
   <script src="js/api.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ko.js"></script>
   <script src="js/admin.js"></script>
 </body>
 </html>

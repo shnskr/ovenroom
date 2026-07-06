@@ -21,13 +21,25 @@ const API = {
     return data.data;
   },
 
+  getAvailability(dates) {
+    return this._post("getAvailability", { dates });
+  },
+  getPricing() {
+    return this._post("getPricing");
+  },
   createReservation(payload) {
     return this._post("createReservation", payload);
   },
-  getReservations(token, from, to) {
-    return this._post("getReservations", { token, from, to });
+  getCreditBalance(name, phone4) {
+    return this._post("getCreditBalance", { name, phone4 });
   },
-  setStatus(token, id, status) {
-    return this._post("updateStatus", { token, id, status });
+  getReservations(auth, from, to) {
+    return this._post("getReservations", { adminId: auth.id, password: auth.pw, from, to });
+  },
+  setStatus(auth, id, status) {
+    return this._post("updateStatus", { adminId: auth.id, password: auth.pw, id, status });
+  },
+  updateProfile(auth, changes) {
+    return this._post("updateProfile", { adminId: auth.id, password: auth.pw, ...changes });
   },
 };
