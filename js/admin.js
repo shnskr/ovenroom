@@ -173,8 +173,17 @@
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  function showLogin() { $("#loginGate").style.display = "flex"; $("#adminApp").style.display = "none"; }
-  function showApp() { $("#loginGate").style.display = "none"; $("#adminApp").style.display = "block"; }
+  function showLogin() {
+    $("#loginGate").style.display = "flex";
+    $("#adminApp").style.display = "none";
+    $("#headerLinks").style.display = "none"; // 로그인 전에는 내 정보 변경/로그아웃 숨김
+    $(".subtitle").textContent = "예약 신청 관리";
+  }
+  function showApp() {
+    $("#loginGate").style.display = "none";
+    $("#adminApp").style.display = "block";
+    $("#headerLinks").style.display = "flex";
+  }
 
   function init() {
     const today = new Date();
