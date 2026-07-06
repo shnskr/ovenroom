@@ -671,11 +671,16 @@ function createReservation(req) {
     }
 
     // 전부 통과 → 날짜별로 한 줄씩 추가 (상태 '대기'. 캘린더는 관리자가 '확정'할 때 등록)
+    // appendRow는 값을 '타이핑한 것처럼' 해석해 연락처(010…)의 앞 0을 지워버리므로,
+    // 해석 없이 그대로 저장하는 setValues를 사용.
     var created = [];
     for (var ci = 0; ci < dates.length; ci++) {
       var dt = dates[ci];
       var id = Utilities.getUuid();
-      sh.appendRow([id, new Date(), dt, start, end, name, phone, people, CAT_LABEL[category], showName, amount, ST_PENDING, ""]);
+      var newRow = sh.getLastRow() + 1;
+      sh.getRange(newRow, 1, 1, HEADERS.length).setValues([
+        [id, new Date(), dt, start, end, name, phone, people, CAT_LABEL[category], showName, amount, ST_PENDING, "", ""],
+      ]);
       created.push({ id: id, date: dt, start: start, end: end });
     }
     return { created: created, count: created.length, amount: amount };
