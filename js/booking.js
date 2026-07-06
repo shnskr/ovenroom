@@ -105,19 +105,8 @@
   }
 
   function updateConflictUI() {
-    // 하루 모드: 그 날 이미 예약된 시간을 미리 표시
-    const busyInfo = $("#busyInfo");
     const dates = selectedDates().map(dateStr);
-    const dayBusy = mode === "single" && dates.length === 1 ? busyMap[dates[0]] || [] : [];
-    if (dayBusy.length) {
-      const list = dayBusy.slice().sort((a, b) => toMin(a.start) - toMin(b.start))
-        .map((b) => `${b.start}~${b.end}${b.pending ? " (대기 중)" : ""}`).join(", ");
-      busyInfo.innerHTML = `📌 이 날 이미 예약된 시간: ${list}` +
-        (dayBusy.some((b) => b.pending) ? '<br><span class="busy-sub">\'대기 중\'은 접수된 신청이라 아직 캘린더에는 보이지 않아요.</span>' : "");
-      busyInfo.hidden = false;
-    } else busyInfo.hidden = true;
-
-    // 겹침 경고
+    // 겹침 경고 (확정 건은 캘린더에서 보이므로, 여기서는 겹칠 때만 안내)
     const box = $("#conflictBox");
     const conf = conflictDates();
     if (!conf.length) { box.hidden = true; box.innerHTML = ""; return; }

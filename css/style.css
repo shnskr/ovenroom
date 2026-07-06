@@ -163,8 +163,6 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--c
 .form label.consent { display: flex; align-items: flex-start; gap: 9px; font-size: 0.88rem; margin: 16px 0 4px; }
 .consent input[type="checkbox"] { width: 17px; height: 17px; margin-top: 2px; flex: none; accent-color: var(--coral-deep); }
 .consent a { color: var(--coral-deep); font-weight: 700; }
-.busy-info { font-size: 0.86rem; font-weight: 700; color: var(--cookie-deep); background: var(--cream-deep); border-radius: 10px; padding: 9px 12px; margin: -4px 0 13px; }
-.busy-sub { font-size: 0.8rem; font-weight: 500; }
 .conflict-box { border: 2px solid var(--coral-deep); background: #fdeeea; color: #a5493a; border-radius: 10px; padding: 11px 13px; font-size: 0.88rem; font-weight: 600; line-height: 1.55; margin-bottom: 13px; }
 .conflict-box .conflict-remove { display: block; margin-top: 9px; }
 .site-footer { padding: 18px 0 30px; text-align: center; }
