@@ -180,13 +180,33 @@
     flatpickr("#fromDate", Object.assign({ defaultDate: today }, fpOpts));
     flatpickr("#toDate", Object.assign({ defaultDate: weekLater }, fpOpts));
 
-    $("#loginBtn").onclick = () => {
+    // 로그인: 서버 검증에 성공해야만 화면 전환 (실패하면 로그인 화면 그대로)
+    $("#loginBtn").onclick = async () => {
       const id = $("#idInput").value.trim();
       const pw = $("#pwInput").value.trim();
       if (!id || !pw) { toast("아이디와 비밀번호를 입력해 주세요."); return; }
-      setAuth(id, pw);
-      showApp();
-      load();
+      const btn = $("#loginBtn");
+      btn.disabled = true; btn.textContent = "확인 중…";
+      try {
+        const res = await API.getReservations({ id, pw }, $("#fromDate").value, $("#toDate").value);
+        setAuth(id, pw);
+        showApp();
+        if (res.admin) { myInfo = res.admin; $(".subtitle").textContent = "예약 신청 관리 · " + res.admin.nick + "님"; }
+        render(res.reservations || []); // 검증하며 받아온 목록 그대로 표시 (재요청 없음)
+      } catch (e) {
+        if (/초기 비밀번호/.test(e.message)) {
+          // 초기 비밀번호 인증 성공 → 비밀번호 설정부터
+          setAuth(id, pw);
+          showApp();
+          $("#cardList").innerHTML = `<div class="hint rc-empty">${escapeHtml(e.message)}</div>`;
+          toast("먼저 비밀번호를 설정해 주세요.");
+          openProfile(true);
+        } else {
+          toast(e.message);
+        }
+      } finally {
+        btn.disabled = false; btn.textContent = "입장";
+      }
     };
     $("#pwInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#loginBtn").click(); });
     $("#logoutBtn").onclick = (e) => { e.preventDefault(); sessionStorage.removeItem(AUTH_KEY); myInfo = null; showLogin(); };
