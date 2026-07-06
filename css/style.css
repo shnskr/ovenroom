@@ -252,12 +252,22 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--c
 .filter-panel summary::before { content: "▸"; color: var(--coral-deep); transition: transform 0.15s; }
 .filter-panel[open] summary::before { transform: rotate(90deg); }
 .fp-now { margin-left: auto; font-size: 0.78rem; font-weight: 600; color: #a58e78; text-align: right; }
-.filter-grid { display: grid; grid-template-columns: 1fr 230px; gap: 18px; margin-top: 13px; padding-top: 13px; border-top: 1.5px dashed var(--line); }
-.fc-title { font-size: 0.8rem; font-weight: 800; color: var(--coral-deep); margin-bottom: 8px; }
+.filter-body { margin-top: 13px; padding-top: 13px; border-top: 1.5px dashed var(--line); }
 .filter-fields { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
 .filter-fields label { flex: 1 1 140px; min-width: 0; font-size: 0.82rem; color: var(--cookie-deep); font-weight: 600; }
 .filter-fields input, .filter-fields select { width: 100%; font-size: 0.9rem; margin-top: 4px; }
+.ff-status { flex: 1 1 100%; }
+.ff-label { display: block; font-size: 0.82rem; color: var(--cookie-deep); font-weight: 600; }
+.st-checks { display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap; }
+.st-checks .st-item { flex: 0 0 auto; }
+.st-item { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 700; border: 2px solid var(--line); border-radius: 10px; padding: 8px 11px; cursor: pointer; background: #fffdfa; }
+.st-item input { width: 15px; height: 15px; accent-color: var(--coral-deep); margin: 0; }
+.st-item:has(input:checked) { border-color: var(--coral-deep); background: #fdeeea; }
 .filter-actions { display: flex; gap: 8px; margin-top: 10px; }
+/* 목록 상단 바: 왼쪽 건수, 오른쪽 정렬 드롭다운 */
+.list-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 2px 0 12px; }
+.list-count { font-size: 0.86rem; font-weight: 800; color: var(--cookie-deep); }
+.sort-select { width: auto; padding: 8px 12px; font-size: 0.86rem; font-weight: 700; border: 2px solid var(--ink); border-radius: 10px; background: var(--card); cursor: pointer; }
 .btn-sm {
   padding: 10px 16px; border: 2px solid var(--ink); border-radius: 12px;
   background: var(--mustard); color: var(--ink); cursor: pointer; font-weight: 700;
@@ -316,10 +326,7 @@ th { background: var(--cream-deep); color: var(--cookie-deep); font-weight: 800;
   .step { font-size: 1.02rem; }
   .cal-frame { height: 430px; }
 
-  .filter-grid { grid-template-columns: 1fr; gap: 14px; }
   .filter-fields label { flex: 1 1 100%; }
-  .filter-fields label:first-child { flex: 1 1 100%; }
-  .filter-col:last-child .filter-fields label { flex: 1 1 calc(50% - 5px); }
   .filter-actions .btn-sm { flex: 1; }
   .fp-now { max-width: 58%; }
 

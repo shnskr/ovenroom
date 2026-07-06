@@ -276,13 +276,16 @@
         html += '<label>현재 참여 중인 공연명 <input type="text" id="showName" maxlength="50" placeholder="공연명" /></label>';
       }
       html += priceTableHtml();
+      // 안내 문구도 요금표(시트) 값으로 생성 — 계산과 항상 일치
+      const P = CONFIG.PRICING;
       if (c === "general" || c === "member") {
-        html += '<div class="surcharge-note">※ 예약인원 10명 초과 시 1시간당 1,000원(1인당) 추가됩니다.</div>';
+        html += `<div class="surcharge-note">※ 예약인원 ${P.extraPersonThreshold}명 초과 시 1시간당 ${P.extraPersonFeePerHour.toLocaleString()}원(1인당) 추가됩니다.</div>`;
       } else if (c === "team") {
         html += '<div class="surcharge-note">※ 인원 추가금이 발생하지 않습니다.</div>';
       }
-      if (c === "member" || c === "team") {
-        html += '<div class="discount-note">※ 위 금액의 20% 할인된 금액으로 계산됩니다.</div>';
+      const discount = c === "member" ? P.memberDiscount : c === "team" ? P.teamDiscount : 0;
+      if (discount > 0) {
+        html += `<div class="discount-note">※ 위 금액의 ${Math.round(discount * 100)}% 할인된 금액으로 계산됩니다.</div>`;
       }
       html += '<div class="total-box"><span class="tb-item">입금액 <b id="totalAmount">-</b></span><span class="tb-item">총 시간 <b id="totalTime">-</b><span class="total-meta" id="totalMetaBottom"></span></span></div>';
     }

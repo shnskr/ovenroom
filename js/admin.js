@@ -35,19 +35,22 @@
     ];
   }
 
+  // 체크된 상태 목록 (모두 해제 = 전체)
+  const checkedStatuses = () => Array.from(document.querySelectorAll(".st-check:checked")).map((c) => c.value);
+
   async function load() {
     const from = $("#fromDate").value;
     const to = $("#toDate").value;
-    const status = $("#statusFilter").value;
+    const statuses = checkedStatuses();
     const body = $("#cardList");
     body.innerHTML = `<div class="hint rc-empty">불러오는 중…</div>`;
     try {
       let rows;
       if (isDemo()) {
         if (!demoRows) demoRows = seedDemo();
-        rows = demoRows.filter((r) => (!from || r.date >= from) && (!to || r.date <= to) && (!status || r.status === status));
+        rows = demoRows.filter((r) => (!from || r.date >= from) && (!to || r.date <= to) && (!statuses.length || statuses.indexOf(r.status) >= 0));
       } else {
-        const res = await API.getReservations(auth(), from, to, status);
+        const res = await API.getReservations(auth(), from, to, statuses.join(","));
         rows = res.reservations || [];
         // 로그인한 관리자 닉네임 표시
         if (res.admin) { myInfo = res.admin; $(".subtitle").textContent = "예약 신청 관리 · " + res.admin.nick + "님"; }
@@ -118,24 +121,24 @@
 
   // 정렬: 예약 요청시간(created) 또는 사용일(date) 기준, 오름/내림차순
   function sortRows(rows) {
-    const key = $("#sortKey").value;
-    const dir = $("#sortDir").value === "desc" ? -1 : 1;
+    const parts = $("#sortSel").value.split("-");
+    const key = parts[0], dir = parts[1] === "desc" ? -1 : 1;
     const val = (r) => (key === "created" ? r.createdAt || "" : r.date + " " + r.start);
     return rows.slice().sort((a, b) => val(a).localeCompare(val(b)) * dir);
   }
 
-  // 접힌 상태에서도 현재 조건이 보이도록 요약 표시
+  // 접힌 상태에서도 현재 검색 조건이 보이도록 요약 표시
   function updateFilterNow() {
-    const st = $("#statusFilter").value || "전체";
+    const sts = checkedStatuses();
+    const st = sts.length === 0 || sts.length === 3 ? "전체" : sts.join("·");
     const from = $("#fromDate").value, to = $("#toDate").value;
     const period = !from && !to ? "전체 기간" : `${from || "…"} ~ ${to || "…"}`;
-    const key = $("#sortKey").value === "created" ? "요청시간" : "사용일";
-    const dir = $("#sortDir").value === "asc" ? "↑" : "↓";
-    $("#filterNow").textContent = `${st} · ${period} · ${key}${dir}`;
+    $("#filterNow").textContent = `${st} · ${period}`;
   }
 
   function render(rows) {
     const body = $("#cardList");
+    $("#listCount").textContent = rows.length + "건";
     if (rows.length === 0) {
       body.innerHTML = `<div class="hint rc-empty">조건에 맞는 예약이 없습니다.</div>`;
       return;
@@ -213,11 +216,10 @@
     const fpFrom = flatpickr("#fromDate", fpOpts);
     const fpTo = flatpickr("#toDate", fpOpts);
     const appVisible = () => $("#adminApp").style.display === "block";
-    $("#statusFilter").addEventListener("change", () => { if (appVisible()) load(); });
-    ["#sortKey", "#sortDir"].forEach((sel) => $(sel).addEventListener("change", () => {
-      updateFilterNow();
-      if (appVisible()) render(lastRows);
+    document.querySelectorAll(".st-check").forEach((c) => c.addEventListener("change", () => {
+      if (appVisible()) load(); else updateFilterNow();
     }));
+    $("#sortSel").addEventListener("change", () => { if (appVisible()) render(lastRows); });
     $("#clearDatesBtn").addEventListener("click", () => {
       fpFrom.clear(); fpTo.clear();
       if (appVisible()) load(); else updateFilterNow();
@@ -232,7 +234,7 @@
       const btn = $("#loginBtn");
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>확인 중…';
       try {
-        const res = await API.getReservations({ id, pw }, $("#fromDate").value, $("#toDate").value, $("#statusFilter").value);
+        const res = await API.getReservations({ id, pw }, $("#fromDate").value, $("#toDate").value, checkedStatuses().join(","));
         setAuth(id, pw);
         showApp();
         if (res.admin) { myInfo = res.admin; $(".subtitle").textContent = "예약 신청 관리 · " + res.admin.nick + "님"; }
