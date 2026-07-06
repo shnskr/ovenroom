@@ -151,6 +151,10 @@
       return;
     }
     body.innerHTML = "";
+    // 지난 예약 판정용 현재 시각 ("yyyy-mm-dd hh:mm" — 문자열 비교, 종료가 "24:00"인 건도 올바르게 동작)
+    const nowD = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const nowStamp = `${nowD.getFullYear()}-${pad(nowD.getMonth() + 1)}-${pad(nowD.getDate())} ${pad(nowD.getHours())}:${pad(nowD.getMinutes())}`;
     sortRows(rows).forEach((r) => {
       const cssStatus = STATUS_CSS[r.status] || "";
       const card = document.createElement("div");
@@ -168,6 +172,10 @@
       // 스페이스클라우드 예약은 피드가 5분마다 상태를 결정하므로 여기서 처리 불가 (스클 호스트센터에서 관리)
       if (String(r.id).indexOf("sc:") === 0) {
         cell.innerHTML = `<span class="rc-sc-note">스클에서 관리</span>`;
+      } else if (`${r.date} ${r.end}` < nowStamp) {
+        // 지난 예약: 기록 보호를 위해 잠금 — 놓친 '대기' 신청을 '취소'로 정리하는 것만 허용 (서버도 동일 규칙)
+        if (r.status === "대기") cell.appendChild(actionBtn("취소", "warn", (btn) => change(r.id, "취소", btn)));
+        else cell.innerHTML = `<span class="rc-sc-note">지난 예약</span>`;
       } else {
         actionsFor(r.status).forEach((a) => cell.appendChild(actionBtn(a.l, a.c, (btn) => change(r.id, a.s, btn))));
       }
