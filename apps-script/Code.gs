@@ -349,14 +349,14 @@ function calGet() {
   if (!calId) return null;
   try { return CalendarApp.getCalendarById(calId); } catch (e) { return null; }
 }
-// 이름 마스킹: 2글자→앞1자+*, 3글자↑→앞2자만 노출하고 나머지는 *
+// 이름 마스킹(가운데 가림): 2글자→앞1자+*, 3글자↑→첫·끝만 노출 (김달님→김*님, 남궁민수→남**수)
 function stars(k) { var s = ""; for (var i = 0; i < k; i++) s += "*"; return s; }
 function maskName(name) {
   name = trim(name);
   var n = name.length;
   if (n <= 1) return name;
   if (n === 2) return name.charAt(0) + "*";
-  return name.substring(0, 2) + stars(n - 2);
+  return name.charAt(0) + stars(n - 2) + name.charAt(n - 1);
 }
 // 제목: "시작시-종료시/마스킹이름(연락처 뒷4자리)" ("19:00"~"22:00", 김달님, 01012348627 → 19-22/김달*(8627))
 function evTitle(start, end, name, phone) {
