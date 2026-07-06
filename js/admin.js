@@ -84,6 +84,8 @@
     if (p1) changes.newPassword = p1;
     if (!Object.keys(changes).length) { closeProfile(); return; }
     if (isDemo()) { toast("데모 모드에서는 변경할 수 없어요."); return; }
+    const btn = $("#profileSaveBtn");
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>저장 중…';
     try {
       const res = await API.updateProfile(a, changes);
       setAuth(res.id, p1 || a.pw);
@@ -93,6 +95,8 @@
       load();
     } catch (e) {
       toast(e.message);
+    } finally {
+      btn.disabled = false; btn.textContent = "저장";
     }
   }
 
@@ -186,7 +190,7 @@
       const pw = $("#pwInput").value.trim();
       if (!id || !pw) { toast("아이디와 비밀번호를 입력해 주세요."); return; }
       const btn = $("#loginBtn");
-      btn.disabled = true; btn.textContent = "확인 중…";
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>확인 중…';
       try {
         const res = await API.getReservations({ id, pw }, $("#fromDate").value, $("#toDate").value);
         setAuth(id, pw);

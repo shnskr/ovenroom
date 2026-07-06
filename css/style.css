@@ -291,6 +291,7 @@ th { background: var(--cream-deep); color: var(--cookie-deep); font-weight: 800;
 .mini.ok { background: #cfe8d6; color: #24603a; }
 .mini.warn { background: #f4d3cd; color: #a5493a; }
 .mini:disabled { opacity: 0.55; cursor: default; }
+.btn-primary:disabled { opacity: 0.7; cursor: default; }
 .spinner { display: inline-block; width: 11px; height: 11px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: -1px; margin-right: 6px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 

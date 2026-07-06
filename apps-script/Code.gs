@@ -85,6 +85,7 @@ function sheet() {
     sh.setFrozenRows(1);
     // 날짜/시간/이름/연락처 열을 '텍스트'로 고정해 자동 변환(예: 010→10, 14:00→시각) 방지
     sh.getRange("C:G").setNumberFormat("@");
+    sh.getRange("B:B").setNumberFormat("yyyy-mm-dd hh:mm"); // 생성일시: 시간까지 표시
   }
   return sh;
 }
@@ -681,6 +682,8 @@ function createReservation(req) {
       sh.getRange(newRow, 1, 1, HEADERS.length).setValues([
         [id, new Date(), dt, start, end, name, phone, people, CAT_LABEL[category], showName, amount, ST_PENDING, "", ""],
       ]);
+      // 생성일시 표시 형식(시간 포함) — 예전에 만들어진 탭에도 적용되도록 행 단위로 지정
+      sh.getRange(newRow, COL.createdAt + 1).setNumberFormat("yyyy-mm-dd hh:mm");
       created.push({ id: id, date: dt, start: start, end: end });
     }
     return { created: created, count: created.length, amount: amount };
