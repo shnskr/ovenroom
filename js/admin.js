@@ -119,6 +119,13 @@
     return `${d.getMonth() + 1}/${d.getDate()}(${WK[d.getDay()]})`;
   }
 
+  // 신청일시를 읽기 좋게 (2026-07-06 09:15 → 7/6(월) 09:15)
+  function fmtCreated(s) {
+    const sp = s.indexOf(" ");
+    if (sp < 0) return s;
+    return `${fmtD(s.slice(0, sp))} ${s.slice(sp + 1)}`;
+  }
+
   // 정렬: 예약 요청시간(created) 또는 사용일(date) 기준, 오름/내림차순
   function sortRows(rows) {
     const parts = $("#sortSel").value.split("-");
@@ -149,11 +156,12 @@
       const card = document.createElement("div");
       card.className = "res-card " + cssStatus;
       const show = r.showName ? ` · ${escapeHtml(r.showName)}` : "";
-      const created = r.createdAt ? `<span class="rc-created">신청 ${escapeHtml(r.createdAt.slice(5))}</span>` : "";
+      const created = r.createdAt ? `<div class="rc-created"><span class="rc-created-label">신청</span>${escapeHtml(fmtCreated(r.createdAt))}</div>` : "";
       card.innerHTML =
         `<div class="rc-top"><span class="rc-when">${fmtD(r.date)} · ${r.start}~${r.end}</span><span class="badge ${cssStatus}">${escapeHtml(r.status)}</span></div>` +
         `<div class="rc-name">${escapeHtml(r.name)}<a class="rc-tel" href="tel:${escapeHtml(r.phone)}">${escapeHtml(r.phone)}</a></div>` +
-        `<div class="rc-meta">${escapeHtml(catLabel(r))}${show} · ${r.people || 1}명 · ${fmtAmount(r.amount)}${created ? " · " : ""}${created}</div>` +
+        `<div class="rc-meta">${escapeHtml(catLabel(r))}${show} · ${r.people || 1}명 · ${fmtAmount(r.amount)}</div>` +
+        created +
         `<div class="rc-foot">${r.handler ? `<span class="rc-handler">${escapeHtml(r.handler)}</span>` : "<span></span>"}<span class="rc-actions"></span></div>`;
       const cell = card.querySelector(".rc-actions");
       actionsFor(r.status).forEach((a) => cell.appendChild(actionBtn(a.l, a.c, (btn) => change(r.id, a.s, btn))));
