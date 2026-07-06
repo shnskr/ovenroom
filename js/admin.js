@@ -53,6 +53,7 @@
         if (res.admin) { myInfo = res.admin; $(".subtitle").textContent = "예약 신청 관리 · " + res.admin.nick + "님"; }
       }
       lastRows = rows;
+      updateFilterNow();
       render(rows);
     } catch (e) {
       body.innerHTML = `<div class="hint rc-empty">${escapeHtml(e.message)}</div>`;
@@ -117,10 +118,20 @@
 
   // 정렬: 예약 요청시간(created) 또는 사용일(date) 기준, 오름/내림차순
   function sortRows(rows) {
-    const parts = $("#sortSel").value.split("-");
-    const key = parts[0], dir = parts[1] === "desc" ? -1 : 1;
+    const key = $("#sortKey").value;
+    const dir = $("#sortDir").value === "desc" ? -1 : 1;
     const val = (r) => (key === "created" ? r.createdAt || "" : r.date + " " + r.start);
     return rows.slice().sort((a, b) => val(a).localeCompare(val(b)) * dir);
+  }
+
+  // 접힌 상태에서도 현재 조건이 보이도록 요약 표시
+  function updateFilterNow() {
+    const st = $("#statusFilter").value || "전체";
+    const from = $("#fromDate").value, to = $("#toDate").value;
+    const period = !from && !to ? "전체 기간" : `${from || "…"} ~ ${to || "…"}`;
+    const key = $("#sortKey").value === "created" ? "요청시간" : "사용일";
+    const dir = $("#sortDir").value === "asc" ? "↑" : "↓";
+    $("#filterNow").textContent = `${st} · ${period} · ${key}${dir}`;
   }
 
   function render(rows) {
@@ -203,11 +214,15 @@
     const fpTo = flatpickr("#toDate", fpOpts);
     const appVisible = () => $("#adminApp").style.display === "block";
     $("#statusFilter").addEventListener("change", () => { if (appVisible()) load(); });
-    $("#sortSel").addEventListener("change", () => { if (appVisible()) render(lastRows); });
+    ["#sortKey", "#sortDir"].forEach((sel) => $(sel).addEventListener("change", () => {
+      updateFilterNow();
+      if (appVisible()) render(lastRows);
+    }));
     $("#clearDatesBtn").addEventListener("click", () => {
       fpFrom.clear(); fpTo.clear();
-      if (appVisible()) load();
+      if (appVisible()) load(); else updateFilterNow();
     });
+    updateFilterNow();
 
     // 로그인: 서버 검증에 성공해야만 화면 전환 (실패하면 로그인 화면 그대로)
     $("#loginBtn").onclick = async () => {
