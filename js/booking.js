@@ -501,6 +501,7 @@
     if (toMin(payload.end) <= toMin(payload.start)) { toast("종료 시간을 시작 시간 이후로 골라 주세요."); return; }
     if (conflictDates().length) { toast("이미 예약이 있는 시간이에요. 날짜나 시간을 바꿔 주세요."); return; }
     if (!$("#privacyAgree").checked) { toast("개인정보 수집·이용에 동의해 주세요."); return; }
+    if (!$("#refundAgree").checked) { toast("환불 규정에 동의해 주세요."); return; }
 
     const total = calcTotal();
     payload.amount = total; // 쿠금통이면 null (입금액 없음)
@@ -545,16 +546,14 @@
       if (creditRemain != null) { creditRemain = null; updateTotal(); }
     }));
     $("#category").addEventListener("change", renderCategoryDetail);
-    // 처리방침은 페이지 이동/새 탭 없이 팝업으로 — 입력하던 내용이 유지됨
-    const openPrivacy = (e) => {
+    // 처리방침·환불 규정은 페이지 이동/새 탭 없이 팝업으로 — 입력하던 내용이 유지됨
+    const openPolicy = (e) => {
       e.preventDefault();
-      $("#privacyFrame").src = "privacy.html"; // 열 때마다 처음부터
+      $("#privacyFrame").src = e.currentTarget.getAttribute("href"); // 열 때마다 처음부터
       $("#privacyModal").hidden = false;
     };
-    const pvLink = document.querySelector(".consent a");
-    if (pvLink) pvLink.addEventListener("click", openPrivacy);
-    const footLink = document.querySelector(".site-footer a");
-    if (footLink) footLink.addEventListener("click", openPrivacy);
+    document.querySelectorAll(".consent a, .site-footer a")
+      .forEach((a) => a.addEventListener("click", openPolicy));
     $("#privacyCloseBtn").addEventListener("click", () => { $("#privacyModal").hidden = true; });
     $("#privacyModal").addEventListener("click", (e) => { if (e.target.id === "privacyModal") e.currentTarget.hidden = true; });
     $("#bookingForm").addEventListener("submit", submit);
